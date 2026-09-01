@@ -1,0 +1,256 @@
+name: super-sdd
+version: 7
+description: OpenSpec workflow with Superpowers-assisted planning, durable design deltas, and evidence gates
+
+# OpenSpec 1.11.0 schema keys: name, version, description, artifacts[{id, generates,
+# description, template, instruction, requires}], apply{requires, tracks, instruction}.
+# Unknown schema keys are stripped. Repo-wide context and apply/archive guidance belong in
+# openspec/config.yaml.
+
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Why, what changes, capability contract, and durable-design impact
+    template: proposal.md
+    requires: []
+    instruction: |
+      The proposal settles WHY, WHAT, and SCOPE. It does NOT weigh approaches - that is the design
+      artifact, which brainstorms and justifies the approach after specs pin down behavior. Record one
+      line of intended direction; if you start comparing options, stop and leave it for design.
+
+      MUST INCLUDE:
+      - Source: project context read (paths or commands).
+      - Why: 1-2 sentences on the problem or opportunity.
+      - What Changes: bullets for additions, modifications, removals. Mark breaking changes BREAKING.
+      - Intended Direction: one provisional line.
+      - Capabilities, each with its exact delta path:
+        - New: `<capability-path> -> specs/<capability-path>/spec.md`. A path may nest
+          (`identity/user-auth`) - follow the existing layout in `openspec/specs/` and use kebab-case for
+          any segment you introduce. Never a bare `specs/spec.md`; the merge path ignores it.
+        - Modified: only when spec-level behavior changes. Verify the durable spec exists at
+          `openspec/specs/<capability-path>/spec.md` first; if it does not, it is a New capability.
+      - Impact: affected code, APIs, dependencies, services.
+      - Durable Design Impact: which files under `openspec/designs/` this change creates or modifies, or
+        "No durable design impact".
+
+      NO SPEC-LEVEL CHANGE:
+      A pure refactor, tooling, or docs change may have zero capabilities. Say so in Capabilities and set
+      `skip_specs: true` in `openspec/changes/<change-id>/.openspec.yaml` - `openspec validate` rejects a
+      zero-delta change without that marker. Never invent a requirement to satisfy validation.
+
+      DONE WHEN:
+      - Why, What Changes, Intended Direction, Capabilities, Impact, Durable Design Impact are all filled.
+      - Every capability names an exact delta spec path, or `skip_specs: true` is set.
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Delta requirements and scenarios (external, black-box behavior)
+    template: spec.md
+    requires:
+      - proposal
+    instruction: |
+      One delta spec per capability from proposal.md, at `specs/<capability-path>/spec.md` using the exact
+      path the proposal named. Specs describe observable behavior and durable contracts - inputs, outputs,
+      error conditions, external constraints. Implementation detail, file-by-file plans, and TDD steps
+      belong in tasks.md; durable technical design belongs in design.md.
+
+      Quick test: if the implementation can change without changing externally visible behavior, it does
+      not belong here.
+
+      CLI-ENFORCED FORMAT:
+      - `### Requirement: <name>` followed by a body line carrying SHALL or MUST. The keyword must be in
+        the BODY, not only in the header - validation reports a header-only keyword as missing.
+      - At least one non-fenced level-4 heading per ADDED or MODIFIED requirement. Use the canonical
+        `#### Scenario: <name>` form with WHEN/THEN bullets. A level-3 heading or bullet is not a scenario,
+        and validation reports the requirement as missing one.
+      - Operation sections: `## ADDED Requirements`, `## MODIFIED Requirements`, `## REMOVED Requirements`,
+        `## RENAMED Requirements` (FROM:/TO:). Include only the ones this change uses.
+      - New capability only: open the file with `## Purpose` - 1-2 sentences, 50+ characters. The sync
+        copies it verbatim into the new main spec; without it the main spec is left with a
+        `TBD - created by archiving change ...` placeholder to fix by hand. Do NOT add `## Purpose` to a
+        delta for an existing capability - that spec already has one and the delta's is ignored.
+
+      WORKFLOW RULE: REMOVED requirements include `**Reason**` and `**Migration**`; OpenSpec 1.11.0 parses
+      only their names, so this schema requires the metadata for reviewers and operators.
+
+      MODIFIED REQUIREMENTS:
+      1. Locate the requirement in `<planningHome.root>/openspec/specs/<capability-path>/spec.md`.
+      2. Copy the ENTIRE block - `### Requirement:` through every `#### Scenario:`.
+      3. Paste under `## MODIFIED Requirements` and edit to the new behavior.
+      4. Keep the header text identical to the original (whitespace-insensitive).
+      Partial MODIFIED content silently loses the scenarios you left out at archive time. Adding a new
+      concern without changing existing behavior is ADDED, not MODIFIED.
+
+      RETIRING A CAPABILITY:
+      If REMOVED entries take a capability's last requirement, set `retire_capabilities: true` in the
+      change's `.openspec.yaml`. Otherwise archive aborts rather than delete the main spec.
+
+      DONE WHEN:
+      - One delta spec per capability the proposal named, at the exact path it named.
+      - Every ADDED/MODIFIED requirement has a SHALL/MUST body line and at least one `#### Scenario`.
+      - New capabilities carry `## Purpose`; unused operation sections are deleted.
+
+  - id: design
+    generates: design.md
+    description: Approach selection plus the durable technical design delta
+    template: design.md
+    requires:
+      - specs
+    instruction: |
+      REQUIRED SKILL (binding): invoke `superpowers:brainstorming` via the Skill tool and use its
+      design-exploration discipline to produce this artifact. If the skill is unavailable, STOP and report
+      that super-sdd requires it for the design artifact, with the fix: enable the superpowers plugin for
+      this project path, then re-run. Do not fall back to ad-hoc design.
+
+      This is where approach selection happens. The proposal settled scope; the specs pinned down behavior.
+      Here you brainstorm the implementation approach, CHOOSE it, and design it. Stay inside the proposal's
+      scope - if design work surfaces a real scope or capability problem (not just an approach choice), stop
+      and revise proposal.md and the specs first.
+
+      MUST INCLUDE:
+      - `## CONTEXT` - approaches considered, the chosen approach, key decisions, alternatives rejected.
+        This is change-local rationale and is NOT synced into any durable doc. Keep it; verify and reviewers
+        read it.
+      - Zero or more `## Durable Design: <openspec/designs/...>` sections, one per target the proposal's
+        Durable Design Impact named. Each holds the durable content as ADDED / MODIFIED / REMOVED
+        subsections. Quote the durable doc's exact existing heading in MODIFIED and REMOVED so the sync can
+        locate what to change. Diagrams use Mermaid.
+      - If the proposal recorded no durable design impact, write the single line
+        `No durable design impact.` after CONTEXT. The file still exists, so the artifact graph and
+        `openspec status` stay honest and the design sync is a no-op.
+
+      BOUNDARY: no step-by-step implementation plan (that is tasks.md), no behavioral contracts (those are
+      specs). The `## Durable Design` sections are merged into `openspec/designs/` at archive by the
+      `openspec-sync-designs` skill - `openspec archive` never touches them.
+
+      DONE WHEN:
+      - CONTEXT records approaches considered, the chosen approach, and alternatives rejected.
+      - Every durable target from the proposal has a `## Durable Design:` section, or the no-impact line is
+        present.
+      - Flow, sequence, and state diagrams are Mermaid; unused operation subsections are deleted.
+
+  - id: tasks
+    generates: tasks.md
+    description: Implementation plan only - file list, checklist, execution steps
+    template: tasks.md
+    requires:
+      - specs
+      - design
+    instruction: |
+      REQUIRED SKILL (binding): invoke `superpowers:writing-plans` via the Skill tool and use its discipline
+      to produce the execution plan. If the skill is unavailable, STOP and report that super-sdd requires it
+      for the tasks artifact, with the fix: enable the superpowers plugin for this project path, then
+      re-run. Do not fall back to ad-hoc planning.
+
+      tasks.md is the implementation plan only. Design rationale and durable design live in design.md - do
+      not restate them; reference design.md where an executor needs the context.
+
+      MUST INCLUDE:
+      - `Scope: runtime` or `Scope: no-runtime` - exactly one such line, at column 1, no backticks, no list
+        marker. runtime means production behavior changes and verification requires implementation commits
+        plus at least one completed task; no-runtime covers spec, schema, config, or docs changes.
+      - Files To Create Or Modify: each concrete file with its operation and a one-line purpose.
+      - Task Checklist: groups as `## N. <group name>`, tasks as `- [ ] N.M Description`. The leading number
+        matches its group, task IDs are unique, and each task states how completion is verified. These are
+        the ONLY checkbox lines in the file; apply parses every checkbox in tasks.md. OpenSpec 1.11.0 does
+        not run its task-numbering warnings for custom schemas, so reviewers must enforce the numbering.
+      - Execution Plan: per task, 2-5 minute steps with exact files and commands. RED/GREEN/REFACTOR for
+        runtime behavior changes; explicit no-runtime/doc/config labels where TDD does not apply. No
+        checkbox syntax here.
+      - Validation Commands, Review Checkpoints, Rollback Or Recovery Notes, Deferred Items.
+
+      DONE WHEN:
+      - Exactly one live `Scope:` line, and only the Task Checklist uses `- [ ]` / `- [x]`.
+      - Every checklist task appears in the Execution Plan with files and commands.
+      - Validation commands, review checkpoints, rollback notes, and deferred items are recorded.
+
+  - id: verify
+    generates: verify.md
+    description: Behavior evidence, artifact consistency, and lightweight retrospective
+    template: verify.md
+    requires:
+      - tasks
+    instruction: |
+      REQUIRED SKILL (binding): invoke `superpowers:verification-before-completion` via the Skill tool and
+      use its discipline to gather this evidence. If the skill is unavailable, STOP and report that
+      super-sdd requires it for the verify artifact, with the fix: enable the superpowers plugin for this
+      project path, then re-run. Do not fall back to ad-hoc verification.
+
+      Write verify.md after the implementation tasks are complete or explicitly deferred. Every pass/fail
+      claim cites fresh command output or an explicit not-applicable rationale. Verify may be re-run; each
+      run overwrites verify.md.
+
+      PRECHECK - run first, from the repo root:
+        BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null || git rev-parse HEAD~1)
+        test "$(grep -cE '^Scope: (runtime|no-runtime)$' <changeRoot>/tasks.md)" -eq 1
+        test "$(git log --oneline "$BASE"..HEAD | wc -l | tr -d ' ')" -gt 0
+      With `Scope: runtime`, additionally require at least one `- [x]` task in tasks.md.
+
+      MUST INCLUDE:
+      1. Structural validation: `openspec validate <change-id> --type change --strict --json`, plus
+         `openspec schema validate super-sdd --verbose` when schema files were touched.
+      2. Task completion: every checklist box `- [x]`, or a non-blocking rationale per open/deferred item.
+      3. Behavior evidence: fresh output for every command promised in tasks.md Validation Commands, plus
+         manual or no-runtime checks.
+      4. Delta-spec sync state per capability: will-sync / already-manually-synced / not-applicable.
+      5. Design-delta sync state per `## Durable Design` target: will-sync / already-manually-synced /
+         not-applicable (use not-applicable when design.md records no durable design impact).
+      6. Deviations, residual risks, and lessons - short and evidence-backed. "None" with a rationale when
+         empty.
+      7. `Decision: PASS`, `Decision: PASS WITH WARNINGS`, or `Decision: FAIL` on exactly one line at
+         column 1, plus the verify date and the `<BASE>..<HEAD>` implementation range.
+
+      DONE WHEN:
+      - One Decision line, and no blocking check is failing.
+      - Every promised command has evidence or a not-applicable rationale.
+      - Both sync states, deviations, residual risks, and lessons are recorded.
+      On FAIL, use `superpowers:systematic-debugging` and loop back to apply.
+
+  - id: archive
+    generates: archive.md
+    description: Design sync, spec sync, and archive execution record
+    template: archive.md
+    requires:
+      - verify
+    instruction: |
+      Write archive.md AFTER verify.md records `Decision: PASS` or `PASS WITH WARNINGS`.
+
+      ORDER MATTERS - the change folder moves at the end, so anything that reads it must run first:
+      1. Sync the design delta: invoke `openspec-sync-designs` to merge each `## Durable Design: <target>`
+         section of design.md into that durable file under `openspec/designs/`. Skip only when design.md
+         records no durable design impact. Nothing else merges these sections; an unmerged delta gets
+         archived silently.
+      2. Archive: invoke `openspec-archive-change`. It runs `openspec-sync-specs` inline for the delta
+         specs, re-verifies each capability against its main spec, then moves the change folder to
+         `openspec/changes/archive/YYYY-MM-DD-<change-id>/`. Do not substitute a bare `mv`, and do not run
+         `openspec archive` as well - one archive path per change.
+      3. Record the result. After the move, archive.md lives at
+         `openspec/changes/archive/YYYY-MM-DD-<change-id>/archive.md`; write the execution result there.
+
+      MUST INCLUDE:
+      - Designs To Archive: each `## Durable Design` target and its durable destination with the sync
+        result, or "No durable design impact."
+      - Specs To Archive: each delta spec and the main spec it merges into, or "No spec delta."
+      - Commands run before archive, with results.
+      - Archive Execution Result: what ran, outcome, date, post-archive folder, capabilities synced, durable
+        design files synced.
+      - Residual follow-ups from verify.md, or "None".
+
+      DONE WHEN:
+      - The design delta is synced (or explicitly no-impact) BEFORE the folder moved.
+      - The archive ran and the post-execution result is recorded in the archived copy of archive.md.
+      - No main spec this change created still carries a `TBD - created by archiving change` Purpose
+        placeholder.
+
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    REQUIRED SKILL (binding): invoke `superpowers:subagent-driven-development` via the Skill tool and
+    execute the Task Checklist with it. If the skill is unavailable, STOP and report that super-sdd requires
+    it for the apply phase, with the fix: enable the superpowers plugin for this project path, then re-run.
+    Do not fall back to inline serial execution - this holds regardless of task count or coupling.
+
+    Work through tasks.md until every Task Checklist item is complete or explicitly deferred with a safe
+    rationale, then produce verify.md and archive.md. See the operation guidance for companion skills and
+    the iteration policy.

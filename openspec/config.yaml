@@ -1,0 +1,31 @@
+schema: super-sdd
+
+context: |
+  Repo-wide artifact rules (apply to every artifact):
+  - Write workflow artifacts only inside the active change directory.
+  - `openspec/specs/` owns durable behavioral specification (external, black-box). `openspec/designs/` owns
+    durable technical design: architecture, API contracts, data model, state machines, event contracts,
+    caching/retry strategy, security model, deployment topology, algorithms, migration approach. The list is
+    open - capture whatever this change needs documented beyond itself.
+  - A change proposes durable design as a delta inside its own `design.md`; it never edits `openspec/designs/`
+    during apply. The delta is merged at archive time by the `openspec-sync-designs` skill.
+  - `tasks.md` is the change-local implementation plan only: file list, checklist, execution steps. No durable
+    design, no design rationale.
+  - Any flow, sequence, or state-machine diagram in a spec or design MUST be Mermaid. No ASCII-art boxes and no
+    inline arrow chains (`A -> B -> C`) - they do not render in GitLab/GitHub and rot in diffs.
+  - Resolve durable paths from `planningHome.root` in `openspec instructions <artifact> --change <id> --json`,
+    never from a hardcoded repo-relative path.
+
+operations:
+  apply:
+    guidance:
+      - "Execute the Task Checklist with `superpowers:subagent-driven-development`: one fresh implementer subagent per task, then the two-stage spec-compliance then code-quality reviewer loop."
+      - "Use `superpowers:test-driven-development` for every runtime behavior change."
+      - "Use `superpowers:using-git-worktrees` when the platform supports isolated worktrees and the workspace is not already isolated."
+      - "Use `superpowers:requesting-code-review` before marking a major task complete and before PR/merge."
+      - "Use `superpowers:verification-before-completion` before any completion claim, and `superpowers:systematic-debugging` when verify fails."
+      - "Iteration: a missing requirement inside an existing capability updates that delta spec; a durable design change updates `design.md`; scope changes update `proposal.md` first. Always update tasks.md and rerun verify, and record the revisit in verify.md Deviations."
+  archive:
+    guidance:
+      - "Sync the design delta with the `openspec-sync-designs` skill BEFORE the change folder moves - nothing else merges `## Durable Design` sections into `openspec/designs/`, and an unmerged delta is archived silently."
+      - "Record the sync result and the final archive location in the change's archive.md, which after the move lives at `openspec/changes/archive/YYYY-MM-DD-<change-id>/archive.md`."
