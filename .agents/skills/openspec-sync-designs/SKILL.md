@@ -1,10 +1,9 @@
 ---
 name: openspec-sync-designs
 description: Sync all of a change's durable design deltas into openspec/designs/ before archiving. Use when asked to sync designs or prepare design sync for archive, including multiple designs/**/*.md documents and legacy design.md changes. OpenSpec's spec sync and archive do not merge designs.
-license: MIT
 compatibility: Requires OpenSpec CLI 1.11.x and filesystem access.
 metadata:
-  author: hr-agent
+  author: rui
   version: "2.0"
 ---
 
