@@ -1,61 +1,24 @@
-# Design
-
-`## CONTEXT` stays change-local. Only `## Durable Design: <target>` sections are synced.
+# <Design topic>
 
 ## CONTEXT
 
-### Approaches Considered
+<Chosen approach, alternatives considered, and rationale. Link related design documents as needed.
+This section stays change-local.>
 
-| Approach | Trade-offs | Decision |
-|---|---|---|
-| `<preferred approach>` | `<why preferred>` | Accepted |
-| `<alternative>` | `<why not>` | Rejected |
+<!-- If this document owns no durable target, replace the remaining sections with:
+No durable design impact.
+Otherwise repeat the routing section for each owned target and retain only needed operations. -->
 
-### Approach
-
-- `<replace-me - the chosen approach, in enough detail that the durable edits below follow from it>`
-
-### Key Decisions
-
-| Decision | Alternatives considered | Rationale |
-|---|---|---|
-| `<replace-me>` | `<replace-me>` | `<replace-me>` |
-
-<!-- NO DURABLE DESIGN IMPACT: delete everything below and leave the single line
-     `No durable design impact.` -->
-
-<!-- EXAMPLE START - DELETE THIS WHOLE BLOCK. Real sections go below EXAMPLE END.
-
-## Durable Design: openspec/designs/architecture.md
+## Durable Design: openspec/designs/<target>.md
 
 ### ADDED
 
-#### Account export pipeline
-
-The export pipeline streams account rows to a CSV encoder behind the dual-control gate.
-
-```mermaid
-sequenceDiagram
-  Client->>Backend: POST /accounts/export
-  Backend->>DB: stream rows
-  Backend-->>Client: text/csv
-```
+<New durable content.>
 
 ### MODIFIED
 
-#### Authentication
-
-(Quote the durable doc's existing heading exactly, then give the content the sync should apply.
-Preserve unrelated content in the durable doc.)
+<Exact existing heading or structured key, followed by the updated durable content.>
 
 ### REMOVED
 
-#### Legacy export adapter
-
-**Reason**: Superseded by the export pipeline above.
-
-EXAMPLE END - DELETE EVERYTHING BETWEEN THE MARKERS. -->
-
-<!-- Real `## Durable Design: <openspec/designs/...>` sections below, one per target the proposal
-     named, each using only the ADDED / MODIFIED / REMOVED subsections it needs. Flow, sequence,
-     and state diagrams MUST be Mermaid. -->
+<Exact existing heading or structured key, and reason for removal.>

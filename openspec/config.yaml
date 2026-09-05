@@ -1,31 +1,27 @@
 schema: super-sdd
 
 context: |
-  Repo-wide artifact rules (apply to every artifact):
-  - Write workflow artifacts only inside the active change directory.
-  - `openspec/specs/` owns durable behavioral specification (external, black-box). `openspec/designs/` owns
-    durable technical design: architecture, API contracts, data model, state machines, event contracts,
-    caching/retry strategy, security model, deployment topology, algorithms, migration approach. The list is
-    open - capture whatever this change needs documented beyond itself.
-  - A change proposes durable design as a delta inside its own `design.md`; it never edits `openspec/designs/`
-    during apply. The delta is merged at archive time by the `openspec-sync-designs` skill.
-  - `tasks.md` is the change-local implementation plan only: file list, checklist, execution steps. No durable
-    design, no design rationale.
-  - Any flow, sequence, or state-machine diagram in a spec or design MUST be Mermaid. No ASCII-art boxes and no
-    inline arrow chains (`A -> B -> C`) - they do not render in GitLab/GitHub and rot in diffs.
-  - Resolve durable paths from `planningHome.root` in `openspec instructions <artifact> --change <id> --json`,
-    never from a hardcoded repo-relative path.
+  - Write artifacts inside the active changeRoot. Resolve durable destinations from planningHome.root
+    and archive destinations from planningHome.changesDir in CLI JSON, not the current working directory.
+  - openspec/specs/ owns observable behavior; openspec/designs/ owns durable technical design.
+    Change-local designs/**/*.md proposes design deltas; tasks.md owns implementation steps.
+    Only openspec-sync-designs merges design deltas, before archive. Do not edit durable designs during apply.
+  - Use Mermaid for flow, sequence, and state diagrams.
+  - Keep artifacts proportional to the change. Remove unused template sections and instructional comments.
+    Honor application conventions and explicit user instructions; avoid duplicated content across documents.
 
 operations:
   apply:
     guidance:
-      - "Execute the Task Checklist with `superpowers:subagent-driven-development`: one fresh implementer subagent per task, then the two-stage spec-compliance then code-quality reviewer loop."
-      - "Use `superpowers:test-driven-development` for every runtime behavior change."
-      - "Use `superpowers:using-git-worktrees` when the platform supports isolated worktrees and the workspace is not already isolated."
-      - "Use `superpowers:requesting-code-review` before marking a major task complete and before PR/merge."
-      - "Use `superpowers:verification-before-completion` before any completion claim, and `superpowers:systematic-debugging` when verify fails."
-      - "Iteration: a missing requirement inside an existing capability updates that delta spec; a durable design change updates `design.md`; scope changes update `proposal.md` first. Always update tasks.md and rerun verify, and record the revisit in verify.md Deviations."
+      - "Run the design instructions' Design Coverage Check before implementation; read every design file from CLI contextFiles."
+      - "Use superpowers:test-driven-development for runtime changes and superpowers:using-git-worktrees when isolation is supported and not already provided."
+      - "Use superpowers:requesting-code-review before major-task completion or PR/merge; use superpowers:verification-before-completion for completion claims and superpowers:systematic-debugging for failures."
+      - "Even when apply reports all_done, produce fresh verify.md evidence using its instructions before archive; all_done only describes task checkboxes."
+      - "Iteration: revise proposal first for scope changes; update affected specs, design documents and the proposal inventory, then tasks. Rerun verification and record deviations."
   archive:
     guidance:
-      - "Sync the design delta with the `openspec-sync-designs` skill BEFORE the change folder moves - nothing else merges `## Durable Design` sections into `openspec/designs/`, and an unmerged delta is archived silently."
-      - "Record the sync result and the final archive location in the change's archive.md, which after the move lives at `openspec/changes/archive/YYYY-MM-DD-<change-id>/archive.md`."
+      - "Require exactly one passing Decision: PASS or Decision: PASS WITH WARNINGS line in verify.md. Resolve changeRoot, planningHome, and artifact paths from fresh openspec status --change <id> --json."
+      - "Before sync, prepare archive.md in changeRoot with Outcome: not-yet-executed. Get its template from openspec templates --schema super-sdd --json. Record source documents, destinations, validation results, and residual follow-ups from verify.md."
+      - "Run openspec-sync-designs synchronously before moving changeRoot. It must reconcile the full inventory, merge all owned destinations, and verify each result or confirm explicit no-impact. Record results before the move; on coverage or sync failure, record failure and stop."
+      - "Use openspec-archive-change exactly once to sync specs inline, verify all capabilities, and move changeRoot under planningHome.changesDir/archive/YYYY-MM-DD-<change-id>/. When already inside that workflow, continue it after design sync; do not invoke it recursively. Do not substitute a bare move or also run openspec archive."
+      - "Finalize archive.md at the actual reported destination with outcome, date, archive folder, synced capabilities/design files, and follow-ups. If no move occurred, retain the failure record in changeRoot. Check each newly created main spec has a meaningful Purpose without an archive-generated TBD placeholder. Claim success only after checking the archived record and all sync results."
