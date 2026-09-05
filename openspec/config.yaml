@@ -1,14 +1,30 @@
 schema: super-sdd
 
 context: |
-  - Write artifacts inside the active changeRoot. Resolve durable destinations from planningHome.root
-    and archive destinations from planningHome.changesDir in CLI JSON, not the current working directory.
-  - openspec/specs/ owns observable behavior; openspec/designs/ owns durable technical design.
-    Change-local designs/**/*.md proposes design deltas; tasks.md owns implementation steps.
-    Only openspec-sync-designs merges design deltas, before archive. Do not edit durable designs during apply.
-  - Use Mermaid for flow, sequence, and state diagrams.
+  Repo-wide artifact rules (apply to every artifact):
+  - Write workflow artifacts only inside the active changeRoot reported by CLI JSON.
+  - `openspec/specs/` owns durable behavioral specification (external, black-box). `openspec/designs/` owns
+    durable technical design: architecture, API contracts, data model, state machines, event contracts,
+    caching/retry strategy, security model, deployment topology, algorithms, migration approach. The list is
+    open - capture whatever this change needs documented beyond itself.
+  - A change proposes durable design as a delta inside its own `designs/**/*.md` documents; it never edits `openspec/designs/`
+    during apply. The delta is merged at archive time by the `openspec-sync-designs` skill.
+  - `tasks.md` is the change-local implementation plan only: file list, checklist, execution steps. No durable
+    design, no design rationale.
+  - Any flow, sequence, or state-machine diagram in a spec or design MUST be Mermaid. No ASCII-art boxes and no
+    inline arrow chains (`A -> B -> C`) - they do not render in GitLab/GitHub and rot in diffs.
   - Keep artifacts proportional to the change. Remove unused template sections and instructional comments.
     Honor application conventions and explicit user instructions; avoid duplicated content across documents.
+  - Durable design writing: begin each document with `## Overview`, use topic-specific design sections,
+    and end with `## Related documents`. Keep the architecture reading guide immediately after its overview.
+    Write self-contained design constraints without PRD citations or unexplained requirement IDs. Use short
+    sentences and one-point bullets; use tables for comparable items with fixed columns and Mermaid for
+    flows, sequences, and state machines. Keep table cells concise and move detailed rationale into named
+    subsections. Preserve decisions, invariants, tradeoffs, recovery paths, and validation caveats; distinguish
+    implemented mechanisms from planned behavior and open questions. This applies to durable content only;
+    retain change-local `CONTEXT` and durable-delta routing wrappers required by the schema.
+  - Resolve durable paths from `planningHome.root` in `openspec instructions <artifact> --change <id> --json`,
+    never from a hardcoded repo-relative path. Resolve archive destinations from `planningHome.changesDir`.
 
 operations:
   apply:
