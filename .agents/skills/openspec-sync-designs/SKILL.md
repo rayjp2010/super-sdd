@@ -1,124 +1,90 @@
 ---
 name: openspec-sync-designs
-description: Sync a change's durable design delta into the designs tree. Use when the user wants to merge the "## Durable Design" sections of a change's design.md into openspec/designs/, typically just before archiving (archiving does NOT sync designs).
+description: Sync all of a change's durable design deltas into openspec/designs/ before archiving. Use when asked to sync designs or prepare design sync for archive, including multiple designs/**/*.md documents and legacy design.md changes. OpenSpec's spec sync and archive do not merge designs.
 license: MIT
-compatibility: Requires openspec CLI.
+compatibility: Requires OpenSpec CLI 1.11.x and filesystem access.
 metadata:
   author: hr-agent
-  version: "1.0"
+  version: "2.0"
 ---
 
-Sync a change's durable design delta into the `openspec/designs/` tree.
+Merge design deltas into durable documents, then verify every destination before the change moves.
+This is an agent-driven merge: OpenSpec discovers files but does not parse or merge design content.
 
-This is an **agent-driven** operation - you will read the change's `design.md` and directly
-edit the durable design docs to apply the changes. Archiving only syncs the `specs/` delta;
-nothing touches `openspec/designs/`, so this skill is the design counterpart of
-`openspec-sync-specs` and MUST run **before** the change folder is archived.
+## 1. Resolve the change and paths
 
-Unlike spec deltas, design docs have no fixed grammar - they are whatever form the design
-needs: free-form prose, Mermaid diagrams, OpenAPI, tables, or a structured spec format.
-There is no `### Requirement` / `#### Scenario` grammar to parse. Merge by judgment: locate
-the section named by the delta, apply the change, and preserve everything else.
+Use the change named by the user or unambiguously established in the conversation. Otherwise run
+`openspec list --json` and ask the user to select; do not guess between changes.
 
-**Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
+Run `openspec status --change <name> --json`. Resolve:
 
-**Steps**
+- Change-local files from `changeRoot` and `artifactPaths.design.existingOutputPaths`.
+- The proposal from `artifactPaths.proposal.existingOutputPaths`.
+- Durable destinations from `planningHome.root`, under its `openspec/designs/` tree.
 
-1. **If no change name provided, prompt for selection**
+Read every reported design file, not just the first. Read the proposal's **Design Documents** inventory.
+Also inspect `changeRoot` for legacy `design.md` and files under `designs/` so neither layout is hidden by
+an old schema's output pattern. A missing design set is an error, not a no-op.
 
-   Run `openspec list --json` to get available changes. Use the **AskUserQuestion tool** to let the user select.
+**Legacy changes:** if only `design.md` exists, read it and reconcile its targets against the proposal's
+**Durable Design Impact** section. Legacy-only sync remains supported even when a newer schema reports
+no matching outputs. If both layouts exist, stop before writes and reconcile them into the new layout
+and inventory; never merge both blindly or silently ignore either. For continued work under revision 8,
+migrate the legacy file to `designs/overview.md` and update the inventory and links first. Do not rewrite
+archived changes as part of migration.
 
-   Show changes that have a `design.md`.
+## 2. Check full coverage before editing
 
-   **IMPORTANT**: Do NOT guess or auto-select a change. Always let the user choose.
+OpenSpec marks a glob artifact complete after one matching file exists. Status `done` is not evidence
+that all planned documents exist or that their content is finished.
 
-2. **Find the durable design delta**
+Compare the complete actual file set with the proposal inventory, then read all routing sections:
 
-   Run `openspec status --change "<name>" --json` and read `design.md` from the change root it
-   reports (`artifactPaths` / `changeRoot`) rather than assuming a repo-relative path.
+- Every listed document must exist and every actual document must be listed. Resolve unfinished
+  placeholders and broken links between change-local design documents.
+- Each inventoried destination must have exactly one nonempty `## Durable Design: <target>` section
+  in its owning document. No undeclared targets or duplicate target ownership, even if deltas agree.
+- Each document without destinations must explicitly say `No durable design impact.` and contain no
+  durable delta sections. Missing sections without this marker are an error. In legacy mode, also require
+  the proposal's explicit no-impact declaration for a no-op.
+- Resolve target paths against `planningHome.root`. Reject targets that escape its `openspec/designs/`
+  tree, including through symlinks. Compare normalized destinations to catch duplicate aliases.
+- Read every existing destination and identify all ADDED/MODIFIED/REMOVED operations before any writes.
+  Resolve ambiguous headings/keys or conflicting operations first. A new destination requires ADDED
+  content; do not silently treat MODIFIED against a missing destination as creation.
 
-   `design.md` contains:
-   - `## CONTEXT` - change-local rationale; **NOT synced** to the durable doc
-   - zero or more `## Durable Design: <durable-path>` sections, where `<durable-path>` is the
-     target file such as `openspec/designs/architecture.md`, `openspec/designs/api/openapi.yaml`,
-     or `openspec/designs/data-model/data-model.md`
+If any check fails, report source files and mismatches and stop before editing. When every document is
+explicitly no-impact, report a successful no-op with the checked source list. Do not archive yourself.
 
-   Each `## Durable Design` section holds the operations to apply, as subsections:
-   - `### ADDED` - new content to insert into the durable doc
-   - `### MODIFIED` - content whose heading is quoted from the durable doc and changes
-   - `### REMOVED` - content to delete
+## 3. Merge each owned destination
 
-   **No durable design impact**: if `design.md` says `No durable design impact.` or has no
-   `## Durable Design` section, there is nothing to sync. Inform the user and stop.
+`## CONTEXT` explains the chosen approach and rationale. Read it to inform the merge, but never copy it
+or the `## Durable Design:` routing heading into the durable document.
 
-3. **For each `## Durable Design` section, apply changes to its target**
+Use only the operations present:
 
-   a. **Read the section** to understand the intended changes, and read `## CONTEXT` for rationale
-      (context informs your merge but is never copied).
+- **ADDED:** insert new content at the appropriate location. If already present and equivalent, leave
+  it unchanged; reconcile a matching heading/key to the intended content without duplicating it.
+- **MODIFIED:** locate the exact existing heading or structured key, then update its content while
+  preserving unrelated sections. If already in the intended state, leave it unchanged.
+- **REMOVED:** delete the named section/key, preserving its siblings. Already absent is a no-op.
 
-   b. **Read the durable target** at `<durable-path>` (may not exist yet).
+For Markdown, merge by headings. For OpenAPI, JSON Schema, or other structured formats, merge by natural
+keys (for example, path + operation + schema), not Markdown headings. Preserve valid syntax and use
+available format validation. Create missing destinations from ADDED content, following neighboring
+conventions. Keep flow, sequence, and state diagrams in Mermaid.
 
-   c. **Apply changes intelligently**:
+Merge synchronously while `changeRoot` still exists. If an error occurs after some writes, report the
+partial results and stop; do not claim success or proceed to archive. A rerun should recognize already
+applied operations and safely finish the remaining changes.
 
-      **ADDED:**
-      - Insert the new content into the durable doc at the sensible location.
-      - If a section with that heading already exists → treat as implicit MODIFIED (reconcile to match).
+## 4. Verify and report
 
-      **MODIFIED:**
-      - Locate the section by its quoted heading in the durable doc.
-      - Apply the described change - replacing or amending the content.
-      - Preserve sibling sections and unrelated content not mentioned in the delta.
+Re-read every destination and compare it with all intended operations. Confirm unrelated content was
+preserved, structured files remain valid, and a second application would introduce no further changes.
+If any mismatch remains, report it as a failure and block archive.
 
-      **REMOVED:**
-      - Delete the named section from the durable doc.
-
-      **Structured-format targets** (the durable doc is a machine format, not prose - e.g. OpenAPI YAML, JSON Schema, a config file):
-      - Merge by the format's natural unit instead of by heading. For OpenAPI that is path + operation + schema; for other formats, the equivalent keyed entry.
-      - ADDED = add the entry; MODIFIED = update it in place; REMOVED = delete it. Keep the rest of the document intact and valid.
-
-   d. **Do NOT sync `## CONTEXT`**, and do not carry the `## Durable Design: <path>` heading itself
-      into the durable doc - it is a routing label, not content.
-
-   e. **Create the durable target** if it does not exist yet:
-      - Create `<durable-path>` (and any parent directory).
-      - Seed it with the ADDED content. Add a short heading/intro if the doc needs one.
-      - Preserve any cross-doc convention used by neighbouring designs (e.g. the `> Part of the architecture overview` lead line) when creating a sub-design under `openspec/designs/`.
-
-4. **Show summary**
-
-   After applying all changes, summarize:
-   - Which durable design files were updated or created
-   - What changed in each (sections added/modified/removed)
-
-**Key Principle: Intelligent Merging**
-
-- The delta represents *intent*, not a wholesale replacement of the durable doc.
-- Quote-and-locate: a MODIFIED section names the heading to find; you apply the change and leave the rest of the doc untouched.
-- Diagrams stay Mermaid; never convert a flow/sequence/state diagram to ASCII art.
-- The operation should be idempotent - running twice should give the same result.
-
-**Output On Success**
-
-```
-## Designs Synced: <change-name>
-
-Updated durable designs:
-
-**openspec/designs/<topic>.md**:
-- Added section: "Account export pipeline"
-- Modified section: "Authentication"
-
-**openspec/designs/api/openapi.yaml**:
-- Added operation: POST /accounts/export
-
-Durable designs are now updated. Run `openspec-archive-change` next to sync the spec delta and move the change folder.
-```
-
-**Guardrails**
-- Run BEFORE the change folder is archived (archiving does not sync designs).
-- Read both the delta and the durable target before making changes.
-- Preserve existing durable content not mentioned in the delta.
-- Never sync `## CONTEXT`.
-- If something is unclear, ask for clarification.
-- Show what you're changing as you go.
-- The operation should be idempotent - running twice should give the same result.
+Report one row per source/destination with `synced`, `already synced`, `no-impact`, or `failed`, plus a
+brief description of changed sections/keys. Include no-impact source documents even in mixed changes.
+Record this result in the change's prepared archive.md when present. On complete success, the caller
+can run `openspec-archive-change` to sync specs and move the change folder. This skill never moves it.

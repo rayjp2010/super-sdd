@@ -2,54 +2,34 @@
 
 ## Source
 
-- Project context read:
-  - `<paths or commands>`
+- <project context and instructions read>
 
 ## Why
 
-`<problem or opportunity, why now; 1-2 sentences>`
+<Problem or opportunity; 1-2 sentences.>
 
 ## What Changes
 
-- `<addition, modification, or removal; mark breaking changes **BREAKING**>`
+- <Change; mark BREAKING where applicable.>
 
 ## Intended Direction
 
-`<provisional direction in one line; leave comparison and justification to design.md>`
+<One provisional line; approach selection belongs in the design documents.>
 
 ## Capabilities
 
-Paths may nest (`identity/user-auth`); use kebab-case for new segments.
+| Capability | New / modified | Delta path | Behavior change |
+|---|---|---|---|
+| <capability-path> | <kind> | specs/<capability-path>/spec.md | <summary> |
 
-### New Capabilities
-
-| Capability path | Delta spec | One-line description |
-|---|---|---|
-| `<capability-path>` | `specs/<capability-path>/spec.md` | ... |
-
-### Modified Capabilities
-
-List only spec-level behavior changes whose main spec already exists.
-
-| Capability path | Delta spec | What requirements change |
-|---|---|---|
-| `<existing-path>` | `specs/<existing-path>/spec.md` | ... |
-
-### No Spec-Level Change
-
-For zero-capability changes, delete both tables, explain why behavior is unchanged, and set
-`skip_specs: true` in `.openspec.yaml`.
+<!-- For no behavioral change, replace the table with a rationale and set skip_specs: true in .openspec.yaml. -->
 
 ## Impact
 
-- `<affected code, APIs, dependencies, or services>`
+<Affected code, APIs, dependencies, or services.>
 
-## Durable Design Impact
+## Design Documents
 
-Each target gets a `## Durable Design: <target>` section in design.md.
-
-| Target | Operation | Reason |
+| Change-local document | Purpose | Durable destinations |
 |---|---|---|
-| `openspec/designs/<topic>.md` | create / update | ... |
-
-If nothing durable is affected, replace the table with: `No durable design impact.`
+| designs/<topic>.md | <concern this document owns> | openspec/designs/<target>.md, or none |
