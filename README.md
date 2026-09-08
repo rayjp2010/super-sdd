@@ -1,7 +1,7 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Version **1.11.8**: revision **8** for **OpenSpec CLI 1.11.x**; checked against **1.11.0**.
+Version **1.11.0.8**: revision **8**, checked against **OpenSpec CLI 1.11.0** and compatible with **1.11.x**.
 
 The six artifacts are proposal, specs, design, tasks, verify, and archive. Implementation happens after
 tasks, verification records fresh evidence afterward, and archive records the sync and move results.
@@ -17,7 +17,7 @@ In the target project's `mise.toml`:
 
 ```toml
 [tools]
-"github:rayjp2010/super-sdd" = "1.11.8"
+"github:rayjp2010/super-sdd" = "1.11.0.8"
 ```
 
 Then, from that project's root:
@@ -51,16 +51,21 @@ openspec new change <change-id> --schema super-sdd
 
 ## Versioning
 
-Releases are `<openspec-major>.<openspec-minor>.<super-sdd-revision>`. Version `1.11.8` is revision 8
-of this workflow, written for OpenSpec CLI 1.11.x. The revision keeps counting up across OpenSpec
-minor bumps, so 1.11.8 is followed by 1.11.9 and then, once OpenSpec 1.12 lands, by 1.12.10.
+Releases are `<openspec-version>.<super-sdd-revision>`: the full OpenSpec CLI version this workflow
+was checked against, then this workflow's own revision. Version `1.11.0.8` is revision 8, checked
+against OpenSpec CLI 1.11.0.
 
-Pin `= "1.11.8"` for an exact revision, or `= "1.11"` to take the newest revision written for OpenSpec
-1.11.x while never crossing into a version built for a different CLI series.
+The revision keeps counting up as the workflow changes, so 1.11.0.8 is followed by 1.11.0.9. When a
+new OpenSpec release is checked, the first three fields move to it and the revision carries on:
+1.11.1.10, then 1.12.0.11.
 
-The root `VERSION` file is the source of truth. Its patch component must equal `version:` in
-`openspec/schemas/super-sdd/schema.yaml`, and a release tag must be `v$(cat VERSION)`; the release
-workflow refuses to publish otherwise. Releasing is `git tag v<version> && git push --tags`, which
+Pin `= "1.11.0.8"` for an exact revision. Shorter pins take the newest release under that prefix:
+`= "1.11.0"` stays on revisions checked against OpenSpec 1.11.0, and `= "1.11"` follows the 1.11.x
+series without ever crossing into a release built for a different one.
+
+The root `VERSION` file is the source of truth. It must have four numeric fields, its last field must
+equal `version:` in `openspec/schemas/super-sdd/schema.yaml`, and a release tag must be
+`v$(cat VERSION)`; the release workflow refuses to publish otherwise. Releasing is `git tag v<version> && git push --tags`, which
 attaches a `git archive` tarball of the repository to a GitHub release.
 
 ## Normal use
@@ -160,6 +165,7 @@ On CLI upgrades, check supported schema fields, glob output discovery, and gener
 instructions. Run `openspec update` to refresh generated skills; it does not update this custom schema
 or the custom sync skill. Revalidate the schema and all six templates afterward.
 
-When you change the schema, raise `version:` in `schema.yaml` and the patch in `VERSION` together, and
-run `bash test/install_test.sh`; it checks that pairing along with the installer's behavior. When the
-targeted OpenSpec series changes, move `VERSION`'s major and minor to match it.
+When you change the schema, raise `version:` in `schema.yaml` and the last field of `VERSION` together,
+and run `bash test/install_test.sh`; it checks that pairing along with the installer's behavior. When
+you check the workflow against a new OpenSpec release, move `VERSION`'s first three fields to that
+release's version.
