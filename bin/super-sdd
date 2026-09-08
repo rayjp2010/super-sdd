@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Copies the super-sdd schema and sync skill into an OpenSpec project.
+# Setting up OpenSpec itself is the user's job; this only installs super-sdd.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,16 +23,10 @@ usage() {
 super-sdd $VERSION ($TARGET)
 
 Usage:
-  super-sdd install [--force] [--no-openspec] [--no-init] [--tools <list>]
-      Set up super-sdd in the current project: pin and install
-      npm:@fission-ai/openspec@${OPENSPEC_VERSION}, run openspec init when
-      openspec/ is missing, then copy in the schema and sync skill.
-      --force          Replace files that already exist
-      --no-openspec    Leave mise.toml alone
-      --no-init        Never run openspec init; fail if openspec/ is missing
-      --tools <list>   Which agent tools this project uses (default: claude).
-                       Passed to openspec init, and naming claude also mirrors
-                       the sync skill into .claude/skills.
+  super-sdd install [--force]
+      Copy the schema and sync skill into the current OpenSpec project.
+      Run 'openspec init' first; this does not set up OpenSpec.
+      --force   Replace files that already exist
   super-sdd version
       Print the version and the OpenSpec release it targets
 EOF
@@ -52,37 +47,6 @@ check_openspec() {
   series="${found%.*}"
   if [ "$series" != "$OPENSPEC_SERIES" ]; then
     warn "OpenSpec CLI $found is installed, but super-sdd $VERSION targets $TARGET"
-  fi
-}
-
-# Pin the OpenSpec CLI this release was checked against in the project's mise.toml,
-# creating the file or replacing an existing pin. 'mise use' owns the TOML edit because
-# 'mise config set' mangles a key holding ':' and '@', and hand-editing guesses at layout.
-pin_openspec() {
-  local pin="npm:@fission-ai/openspec@$OPENSPEC_VERSION"
-  if ! command -v mise >/dev/null 2>&1; then
-    warn "mise not found; pin the CLI yourself with: mise use \"$pin\""
-    return
-  fi
-  if mise use "$pin" >/dev/null 2>&1; then
-    printf 'pinned %s in mise.toml\n' "$pin"
-  else
-    # Most often an untrusted mise.toml: mise refuses to edit a config carrying env or tasks.
-    warn "could not update mise.toml; run 'mise trust' if it is untrusted, then: mise use \"$pin\""
-  fi
-}
-
-# Run the OpenSpec CLI at the version this release targets. Going through mise exec
-# rather than PATH means the right version runs even when the caller's shell resolves
-# openspec to a shim with no active version, which is the state that broke the old
-# init-then-install order.
-run_openspec() {
-  if command -v mise >/dev/null 2>&1; then
-    mise exec "npm:@fission-ai/openspec@$OPENSPEC_VERSION" -- openspec "$@"
-  elif command -v openspec >/dev/null 2>&1; then
-    openspec "$@"
-  else
-    die "no OpenSpec CLI available; install mise, or run 'openspec init' yourself"
   fi
 }
 
@@ -111,17 +75,9 @@ link_into() {
   local target="$1" dest_dir="$2" dest
   dest="$dest_dir/$(basename "$target")"
   clear_dest "$dest"
+  mkdir -p "$dest_dir"
   ln -s "$target" "$dest"
   printf 'linked %s -> %s\n' "$dest" "$target"
-}
-
-# True when $TOOLS names Claude. Comma-delimited matching avoids grep word boundaries,
-# which are not portable, and handles lists like "codex,claude".
-tools_include_claude() {
-  case ",$TOOLS," in
-    *,claude,*|*,all,*) return 0 ;;
-    *) return 1 ;;
-  esac
 }
 
 # True when config.yaml carries no settings beyond its schema line, which is what
@@ -131,32 +87,15 @@ config_is_untouched() {
 }
 
 install_cmd() {
-  # Pin first: it installs the CLI that openspec init needs, and it lets the version
-  # check below see a CLI this run just made available.
-  if [ "$PIN_OPENSPEC" = yes ]; then
-    pin_openspec
-  fi
+  [ -d openspec ] || die "no openspec/ directory here; run 'openspec init' first"
   check_openspec
-
-  # init also creates the tool's skills directory, which decides whether the
-  # .claude/skills mirror below happens at all.
-  if [ ! -d openspec ]; then
-    [ "$RUN_INIT" = yes ] || die "no openspec/ directory here; run 'openspec init' or drop --no-init"
-    printf 'running openspec init --tools %s\n' "$TOOLS"
-    run_openspec init --tools "$TOOLS" --no-animation >/dev/null
-    [ -d openspec ] || die "openspec init did not create openspec/"
-    printf 'wrote openspec/\n'
-  fi
 
   copy_into "$SCHEMA_SRC" openspec/schemas
   copy_into "$SKILL_SRC" .agents/skills
-  # Claude reads .claude/skills. Mirror when --tools names Claude, creating the directory
-  # if needed: a project that already had openspec/ skips init, so nothing else would ever
-  # create it. Also mirror when the directory exists regardless of --tools, so an existing
-  # Claude project keeps working. Link rather than copy, so the project holds one copy of
-  # the skill and the two locations cannot drift apart.
-  if tools_include_claude || [ -d .claude/skills ]; then
-    mkdir -p .claude/skills
+  # Claude reads .claude/skills. Key the mirror on .claude itself, not .claude/skills:
+  # a project can use Claude without that subdirectory existing yet. Link rather than
+  # copy, so the project holds one copy of the skill and the two cannot drift apart.
+  if [ -d .claude ]; then
     link_into "../../.agents/skills/$(basename "$SKILL_SRC")" .claude/skills
   fi
 
@@ -172,21 +111,13 @@ install_cmd() {
 }
 
 FORCE=no
-PIN_OPENSPEC=yes
-RUN_INIT=yes
-TOOLS=claude
 cmd="${1:-}"
 shift || true
-while [ $# -gt 0 ]; do
-  case "$1" in
+for arg in "$@"; do
+  case "$arg" in
     --force) FORCE=yes ;;
-    --no-openspec) PIN_OPENSPEC=no ;;
-    --no-init) RUN_INIT=no ;;
-    --tools) shift; [ $# -gt 0 ] || die "--tools needs a value"; TOOLS="$1" ;;
-    --tools=*) TOOLS="${1#--tools=}" ;;
-    *) die "unknown option: $1" ;;
+    *) die "unknown option: $arg" ;;
   esac
-  shift
 done
 
 case "$cmd" in

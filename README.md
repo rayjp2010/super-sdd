@@ -1,7 +1,7 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Version 1.11.0.13: revision 13, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
+Version 1.11.0.14: revision 14, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
 
 ```mermaid
 flowchart TD
@@ -45,41 +45,36 @@ its skill is unavailable. Companion skills support TDD, worktrees, review, and d
 
 ```toml
 [tools]
-"github:rayjp2010/super-sdd" = "1.11.0.13"
+"github:rayjp2010/super-sdd" = "1.11.0.14"
+"npm:@fission-ai/openspec" = "1.11.0"
 ```
 
 ```bash
 mise install
+openspec init          # OpenSpec's own setup; skip if the project has openspec/
 super-sdd install
 ```
 
-`super-sdd install` does the rest: it pins and installs the OpenSpec CLI this revision targets, runs
-`openspec init` when `openspec/` is missing, and then copies itself in. It runs the CLI through
-`mise exec`, so it works even when a bare `openspec` is a shim with no active version. Pass
-`--tools <list>` to choose what `openspec init` sets up (default `claude`), or `--no-init` to require
-an existing `openspec/`.
+Setting OpenSpec up is OpenSpec's business, so `super-sdd install` does not pin the CLI, run `init`,
+or generate skills. It installs super-sdd into a project that already has `openspec/`, and stops with
+a message if that directory is missing. It warns, without blocking, when the CLI it finds is outside
+the series this revision targets.
 
 That leaves the project holding:
 
 ```
 your-project/
-  mise.toml                                openspec pin refreshed to match the installed revision
   openspec/config.yaml                     replaced only when untouched since openspec init
   openspec/schemas/super-sdd/              schema.yaml and the six templates
   .agents/skills/openspec-sync-designs/    the project's one copy of the sync skill
-  .claude/skills/openspec-sync-designs     symlink to it, created when --tools names claude
+  .claude/skills/openspec-sync-designs     symlink to it, when the project has a .claude directory
 ```
 
-`--tools` declares which agent the project uses. It is passed to `openspec init`, and naming `claude`
-also mirrors the sync skill into `.claude/skills`, creating that directory when it is missing. That
-matters for a project that adopted OpenSpec before super-sdd: `openspec/` already exists, so init
-never runs, and nothing else would create the directory. `--tools agents` leaves no `.claude` behind,
-though an existing `.claude/skills` is always mirrored whatever `--tools` says. A config.yaml
-carrying real project settings is left alone, and you merge
+The mirror is keyed on `.claude` existing rather than `.claude/skills`, since a Claude project can
+predate that subdirectory. A config.yaml carrying real project settings is left alone, and you merge
 its `context` and `operations` blocks yourself. Nothing else is overwritten without `--force`, which
-is also how you re-run the installer after `mise up`. `--no-openspec` leaves `mise.toml` alone. When
-mise is missing or refuses to edit an untrusted config, the installer prints the `mise use` line to
-run and carries on. Without mise entirely, run `bin/super-sdd install` from a clone.
+is also how you re-run the installer after `mise up`. Without mise, run `bin/super-sdd install` from
+a clone.
 
 Use the CLI-generated OpenSpec skills rather than copying their implementations from another project,
 and run everything from the project root. Outside a project that pins the CLI, where mise may hold
@@ -100,8 +95,8 @@ openspec validate <change-id> --type change --strict --json
 ## Versioning
 
 Releases are `<openspec-version>.<super-sdd-revision>`: the OpenSpec CLI version this workflow was
-checked against, then the workflow's own revision. `1.11.0.13` is revision 13 checked against OpenSpec
-1.11.0, and the next revision is 1.11.0.14. Checking against a newer OpenSpec release moves the first
+checked against, then the workflow's own revision. `1.11.0.14` is revision 14 checked against OpenSpec
+1.11.0, and the next revision is 1.11.0.15. Checking against a newer OpenSpec release moves the first
 three fields while the revision carries on. Shorter pins take the newest release under that prefix,
 so `= "1.11.0"` follows revisions for that OpenSpec release and `= "1.11"` follows the series.
 
