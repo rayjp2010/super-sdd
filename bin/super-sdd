@@ -22,8 +22,13 @@ usage() {
 super-sdd $VERSION ($TARGET)
 
 Usage:
-  super-sdd install [--force]   Copy the schema and sync skill into the current project
-  super-sdd version             Print the version and the OpenSpec release it targets
+  super-sdd install [--force] [--no-openspec]
+      Copy the schema and sync skill into the current project, and pin
+      npm:@fission-ai/openspec@${OPENSPEC_VERSION} in its mise.toml.
+      --force         Replace files that already exist
+      --no-openspec   Leave mise.toml alone
+  super-sdd version
+      Print the version and the OpenSpec release it targets
 EOF
 }
 
@@ -42,6 +47,23 @@ check_openspec() {
   series="${found%.*}"
   if [ "$series" != "$OPENSPEC_SERIES" ]; then
     warn "OpenSpec CLI $found is installed, but super-sdd $VERSION targets $TARGET"
+  fi
+}
+
+# Pin the OpenSpec CLI this release was checked against in the project's mise.toml,
+# creating the file or replacing an existing pin. 'mise use' owns the TOML edit because
+# 'mise config set' mangles a key holding ':' and '@', and hand-editing guesses at layout.
+pin_openspec() {
+  local pin="npm:@fission-ai/openspec@$OPENSPEC_VERSION"
+  if ! command -v mise >/dev/null 2>&1; then
+    warn "mise not found; pin the CLI yourself with: mise use \"$pin\""
+    return
+  fi
+  if mise use "$pin" >/dev/null 2>&1; then
+    printf 'pinned %s in mise.toml\n' "$pin"
+  else
+    # Most often an untrusted mise.toml: mise refuses to edit a config carrying env or tasks.
+    warn "could not update mise.toml; run 'mise trust' if it is untrusted, then: mise use \"$pin\""
   fi
 }
 
@@ -65,8 +87,13 @@ config_is_untouched() {
 }
 
 install_cmd() {
-  check_openspec
   [ -d openspec ] || die "no openspec/ directory here; run 'openspec init' first"
+
+  # Pin before checking, so the check sees a CLI this run just made available.
+  if [ "$PIN_OPENSPEC" = yes ]; then
+    pin_openspec
+  fi
+  check_openspec
 
   copy_into "$SCHEMA_SRC" openspec/schemas
   copy_into "$SKILL_SRC" .agents/skills
@@ -87,11 +114,13 @@ install_cmd() {
 }
 
 FORCE=no
+PIN_OPENSPEC=yes
 cmd="${1:-}"
 shift || true
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=yes ;;
+    --no-openspec) PIN_OPENSPEC=no ;;
     *) die "unknown option: $arg" ;;
   esac
 done

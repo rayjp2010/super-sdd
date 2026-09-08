@@ -11,6 +11,9 @@ assert_fails() { if "$@" >/dev/null 2>&1; then printf 'FAIL: expected failure: %
 
 bash "$ROOT/test/version_check.sh" >/dev/null
 
+OPENSPEC_VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"; OPENSPEC_VERSION="${OPENSPEC_VERSION%.*}"
+PIN="\"npm:@fission-ai/openspec\" = \"$OPENSPEC_VERSION\""
+
 # Fresh project: openspec init has run, nothing else.
 mkdir -p "$WORK/fresh/openspec/schemas"
 cd "$WORK/fresh"
@@ -48,5 +51,32 @@ assert_file .claude/skills/openspec-sync-designs/SKILL.md
 mkdir -p "$WORK/bare"
 cd "$WORK/bare"
 assert_fails "$CLI" install
+if [ -e "$WORK/bare/mise.toml" ]; then
+  printf 'FAIL: wrote mise.toml before bailing\n' >&2; exit 1
+fi
+
+# The OpenSpec pin: created when absent, bumped when stale, skipped on request.
+# Skipped entirely without mise, since the installer only prints advice then.
+if command -v mise >/dev/null 2>&1; then
+  mkdir -p "$WORK/pin/openspec"
+  cd "$WORK/pin"
+  "$CLI" install >/dev/null
+  grep -qF "$PIN" mise.toml
+
+  printf '[tools]\n"npm:@fission-ai/openspec" = "1.9.0"\nnode = "22"\n' > mise.toml
+  "$CLI" install --force >/dev/null
+  grep -qF "$PIN" mise.toml
+  grep -q 'node = "22"' mise.toml            # unrelated tools survive
+  if grep -q '1\.9\.0' mise.toml; then
+    printf 'FAIL: stale openspec pin left behind\n' >&2; exit 1
+  fi
+
+  mkdir -p "$WORK/nopin/openspec"
+  cd "$WORK/nopin"
+  "$CLI" install --no-openspec >/dev/null
+  if [ -e mise.toml ]; then
+    printf 'FAIL: --no-openspec still wrote mise.toml\n' >&2; exit 1
+  fi
+fi
 
 printf 'ok: all install checks passed\n'
