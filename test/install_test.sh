@@ -55,13 +55,17 @@ rm -rf .agents/skills/openspec-sync-designs
 "$CLI" install --force >/dev/null
 assert_file .claude/skills/openspec-sync-designs/SKILL.md
 
-# Not an OpenSpec project.
+# Not an OpenSpec project, and told not to fix that.
 mkdir -p "$WORK/bare"
 cd "$WORK/bare"
-assert_fails "$CLI" install
-if [ -e "$WORK/bare/mise.toml" ]; then
-  printf 'FAIL: wrote mise.toml before bailing\n' >&2; exit 1
+assert_fails "$CLI" install --no-init --no-openspec
+if [ -e "$WORK/bare/openspec" ]; then
+  printf 'FAIL: --no-init still ran openspec init\n' >&2; exit 1
 fi
+
+# Bad arguments are rejected rather than silently ignored.
+assert_fails "$CLI" install --tools          # value missing
+assert_fails "$CLI" install --nonsense
 
 # The OpenSpec pin: created when absent, bumped when stale, skipped on request.
 # Skipped entirely without mise, since the installer only prints advice then.
@@ -84,6 +88,27 @@ if command -v mise >/dev/null 2>&1; then
   "$CLI" install --no-openspec >/dev/null
   if [ -e mise.toml ]; then
     printf 'FAIL: --no-openspec still wrote mise.toml\n' >&2; exit 1
+  fi
+
+  # One command from an empty directory: pin, init, copy, link.
+  mkdir -p "$WORK/scratch"
+  cd "$WORK/scratch"
+  "$CLI" install >/dev/null
+  assert_file openspec/config.yaml                               # openspec init ran
+  assert_file openspec/schemas/super-sdd/schema.yaml
+  assert_file .agents/skills/openspec-sync-designs/SKILL.md
+  assert_file .claude/skills/openspec-sync-designs/SKILL.md      # --tools claude made the dir
+  [ -L .claude/skills/openspec-sync-designs ] || { printf 'FAIL: mirror is not a symlink\n' >&2; exit 1; }
+  grep -qF "$PIN" mise.toml
+  grep -q '^schema: super-sdd$' openspec/config.yaml
+
+  # A non-Claude tool gets no .claude mirror.
+  mkdir -p "$WORK/agents-only"
+  cd "$WORK/agents-only"
+  "$CLI" install --tools agents >/dev/null
+  assert_file .agents/skills/openspec-sync-designs/SKILL.md
+  if [ -e .claude ]; then
+    printf 'FAIL: --tools agents created .claude\n' >&2; exit 1
   fi
 fi
 

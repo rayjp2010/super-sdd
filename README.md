@@ -1,7 +1,7 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Version 1.11.0.11: revision 11, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
+Version 1.11.0.12: revision 12, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
 
 ```mermaid
 flowchart TD
@@ -45,19 +45,19 @@ its skill is unavailable. Companion skills support TDD, worktrees, review, and d
 
 ```toml
 [tools]
-"github:rayjp2010/super-sdd" = "1.11.0.11"
-"npm:@fission-ai/openspec" = "1.11.0"
+"github:rayjp2010/super-sdd" = "1.11.0.12"
 ```
 
 ```bash
 mise install
-openspec init          # skip if the project already has openspec/
 super-sdd install
 ```
 
-Pin the CLI in that first block rather than relying on a global install. `openspec init` needs the
-CLI, and `super-sdd install` is what would otherwise supply it, so a project that pins only super-sdd
-stalls at the second command whenever mise holds openspec with no active version.
+`super-sdd install` does the rest: it pins and installs the OpenSpec CLI this revision targets, runs
+`openspec init` when `openspec/` is missing, and then copies itself in. It runs the CLI through
+`mise exec`, so it works even when a bare `openspec` is a shim with no active version. Pass
+`--tools <list>` to choose what `openspec init` sets up (default `claude`), or `--no-init` to require
+an existing `openspec/`.
 
 That leaves the project holding:
 
@@ -67,14 +67,15 @@ your-project/
   openspec/config.yaml                     replaced only when untouched since openspec init
   openspec/schemas/super-sdd/              schema.yaml and the six templates
   .agents/skills/openspec-sync-designs/    the project's one copy of the sync skill
-  .claude/skills/openspec-sync-designs     symlink to it, when .claude/skills already exists
+  .claude/skills/openspec-sync-designs     symlink to it, when the tool uses .claude/skills
 ```
 
-A config.yaml carrying real project settings is left alone, and you merge its `context` and
-`operations` blocks yourself. Nothing else is overwritten without `--force`, which is also how you
-re-run the installer after `mise up`. `--no-openspec` leaves `mise.toml` alone. When mise is missing
-or refuses to edit an untrusted config, the installer prints the `mise use` line to run and carries
-on. Without mise entirely, run `bin/super-sdd install` from a clone.
+The mirror only appears when the chosen tool writes `.claude/skills`, so `--tools agents` leaves no
+`.claude` directory behind. A config.yaml carrying real project settings is left alone, and you merge
+its `context` and `operations` blocks yourself. Nothing else is overwritten without `--force`, which
+is also how you re-run the installer after `mise up`. `--no-openspec` leaves `mise.toml` alone. When
+mise is missing or refuses to edit an untrusted config, the installer prints the `mise use` line to
+run and carries on. Without mise entirely, run `bin/super-sdd install` from a clone.
 
 Use the CLI-generated OpenSpec skills rather than copying their implementations from another project,
 and run everything from the project root. Outside a project that pins the CLI, where mise may hold
@@ -95,8 +96,8 @@ openspec validate <change-id> --type change --strict --json
 ## Versioning
 
 Releases are `<openspec-version>.<super-sdd-revision>`: the OpenSpec CLI version this workflow was
-checked against, then the workflow's own revision. `1.11.0.11` is revision 11 checked against OpenSpec
-1.11.0, and the next revision is 1.11.0.12. Checking against a newer OpenSpec release moves the first
+checked against, then the workflow's own revision. `1.11.0.12` is revision 12 checked against OpenSpec
+1.11.0, and the next revision is 1.11.0.13. Checking against a newer OpenSpec release moves the first
 three fields while the revision carries on. Shorter pins take the newest release under that prefix,
 so `= "1.11.0"` follows revisions for that OpenSpec release and `= "1.11"` follows the series.
 
