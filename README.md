@@ -46,6 +46,7 @@ its skill is unavailable. Companion skills support TDD, worktrees, review, and d
 ```toml
 [tools]
 "github:rayjp2010/super-sdd" = "1.11.0.10"
+"npm:@fission-ai/openspec" = "1.11.0"
 ```
 
 ```bash
@@ -54,11 +55,15 @@ openspec init          # skip if the project already has openspec/
 super-sdd install
 ```
 
+Pin the CLI in that first block rather than relying on a global install. `openspec init` needs the
+CLI, and `super-sdd install` is what would otherwise supply it, so a project that pins only super-sdd
+stalls at the second command whenever mise holds openspec with no active version.
+
 That leaves the project holding:
 
 ```
 your-project/
-  mise.toml                                pins npm:@fission-ai/openspec alongside super-sdd
+  mise.toml                                openspec pin refreshed to match the installed revision
   openspec/config.yaml                     replaced only when untouched since openspec init
   openspec/schemas/super-sdd/              schema.yaml and the six templates
   .agents/skills/openspec-sync-designs/    the project's one copy of the sync skill
@@ -72,8 +77,9 @@ or refuses to edit an untrusted config, the installer prints the `mise use` line
 on. Without mise entirely, run `bin/super-sdd install` from a clone.
 
 Use the CLI-generated OpenSpec skills rather than copying their implementations from another project,
-and run everything from the project root. If mise has the CLI installed but no active version, use
-`mise exec npm:@fission-ai/openspec@1.11.0 -- openspec ...` instead of changing global settings.
+and run everything from the project root. Outside a project that pins the CLI, where mise may hold
+openspec with no active version, use `mise exec npm:@fission-ai/openspec@1.11.0 -- openspec ...`
+instead of changing global settings.
 
 ```bash
 openspec schema validate super-sdd --verbose         # after installing
