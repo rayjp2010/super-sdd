@@ -1,26 +1,52 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Version **1.11.0.9**: revision **9**, checked against **OpenSpec CLI 1.11.0** and compatible with **1.11.x**.
+Version 1.11.0.9: revision 9, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
 
-The six artifacts are proposal, specs, design, tasks, verify, and archive. Implementation happens after
-tasks, verification records fresh evidence afterward, and archive records the sync and move results.
-The `design` artifact is a set of files, not a fixed document list.
+```mermaid
+flowchart TD
+    P["proposal.md"] --> S["specs/**/*.md"]
+    S --> D["designs/**/*.md"]
+    D --> T["tasks.md"]
+    T --> I["implementation (openspec-apply-change)"]
+    I --> V["verify.md"]
+    V -- "FAIL" --> I
+    V -- "PASS or PASS WITH WARNINGS" --> A["archive.md, outcome not-yet-executed"]
+    A --> Y["openspec-sync-designs"]
+    Y --> R["openspec-archive-change"]
+    R --> F["archive.md finalized at the reported destination"]
+    Y -.-> DD[("openspec/designs/")]
+    R -.-> DS[("openspec/specs/")]
+    C{{"design coverage check"}} -.-> T
+    C -.-> I
+    C -.-> V
+    C -.-> Y
+```
+
+`openspec-continue-change` creates the next artifact; `openspec-propose` prepares implementation
+prerequisites. The design artifact is a set of files rather than a fixed document list, which is why
+the coverage check hangs off four points: OpenSpec marks `designs/**/*.md` done as soon as one
+matching file exists, so it can never tell you the set is complete. The check is agent-enforced, not
+CLI validation, and it stops the next phase on missing or unlisted files, unfinished content, broken
+design links, or conflicting destinations.
+
+Apply reads every design file and tracks tasks.md. The archive operation guidance in
+`openspec/config.yaml` coordinates the last three steps, and the sync skill also runs on its own when
+explicitly requested.
+
+Two rules the arrows understate. A prepared archive.md is not proof of execution, and you never
+archive after a failed or incomplete sync, because OpenSpec's own archive does not merge designs.
 
 ## Install
 
-Prerequisites: OpenSpec CLI 1.11.x and the Superpowers skills for brainstorming, writing plans,
-subagent-driven development, and verification. Those four skills are binding: the relevant phase stops
-if its skill is unavailable. Companion skills support TDD, worktrees, review, and debugging.
-
-In the target project's `mise.toml`:
+Prerequisites: OpenSpec CLI 1.11.x, plus the Superpowers skills for brainstorming, writing plans,
+subagent-driven development, and verification. Those four are binding, so the relevant phase stops if
+its skill is unavailable. Companion skills support TDD, worktrees, review, and debugging.
 
 ```toml
 [tools]
 "github:rayjp2010/super-sdd" = "1.11.0.9"
 ```
-
-Then, from that project's root:
 
 ```bash
 mise install
@@ -28,86 +54,55 @@ openspec init          # skip if the project already has openspec/
 super-sdd install
 ```
 
-`super-sdd install` copies the schema into `openspec/schemas/` and the sync skill into
-`.agents/skills/`, mirroring the skill into `.claude/skills/` when that directory already exists.
-A `openspec/config.yaml` that still holds only the defaults from `openspec init` is replaced with this
-repository's config; one carrying real project settings is left alone, and you merge the `context` and
-`operations` blocks yourself. Existing files are never overwritten without `--force`, which is also how
-you re-run the installer after `mise up`.
+That leaves the project holding:
 
-It also pins the matching OpenSpec CLI in the project's `mise.toml`, creating the file if it is absent
-and replacing any existing pin:
-
-```toml
-[tools]
-"npm:@fission-ai/openspec" = "1.11.0"
+```
+your-project/
+  mise.toml                                pins npm:@fission-ai/openspec alongside super-sdd
+  openspec/config.yaml                     replaced only when untouched since openspec init
+  openspec/schemas/super-sdd/              schema.yaml and the six templates
+  .agents/skills/openspec-sync-designs/
+  .claude/skills/openspec-sync-designs/    only when .claude/skills already exists
 ```
 
-so `mise install` alone sets up a fresh checkout with both tools. Pass `--no-openspec` to leave
-`mise.toml` untouched. If mise is missing, or refuses to edit an untrusted config, the installer prints
-the `mise use` line to run and carries on. It then warns, without blocking, when the OpenSpec CLI it
-finds is outside the series this version targets.
+A config.yaml carrying real project settings is left alone, and you merge its `context` and
+`operations` blocks yourself. Nothing else is overwritten without `--force`, which is also how you
+re-run the installer after `mise up`. `--no-openspec` leaves `mise.toml` alone. When mise is missing
+or refuses to edit an untrusted config, the installer prints the `mise use` line to run and carries
+on. Without mise entirely, run `bin/super-sdd install` from a clone.
 
-Without mise, clone this repository and run its `bin/super-sdd install` from the target project, or
-copy `openspec/schemas/super-sdd` and `.agents/skills/openspec-sync-designs` across by hand.
-
-Use the CLI-generated OpenSpec skills; do not copy their implementations from another project.
-Run all commands from the intended project's root. If mise has the CLI installed but no active version,
-use `mise exec npm:@fission-ai/openspec@1.11.0 -- openspec ...` without changing global settings.
+Use the CLI-generated OpenSpec skills rather than copying their implementations from another project,
+and run everything from the project root. If mise has the CLI installed but no active version, use
+`mise exec npm:@fission-ai/openspec@1.11.0 -- openspec ...` instead of changing global settings.
 
 ```bash
-openspec schema validate super-sdd --verbose
+openspec schema validate super-sdd --verbose         # after installing
 openspec templates --schema super-sdd
 openspec new change <change-id> --schema super-sdd
-```
 
-## Versioning
-
-Releases are `<openspec-version>.<super-sdd-revision>`: the full OpenSpec CLI version this workflow
-was checked against, then this workflow's own revision. Version `1.11.0.9` is revision 9, checked
-against OpenSpec CLI 1.11.0.
-
-The revision keeps counting up as the workflow changes, so 1.11.0.9 is followed by 1.11.0.10. When a
-new OpenSpec release is checked, the first three fields move to it and the revision carries on:
-1.11.1.10, then 1.12.0.11.
-
-Pin `= "1.11.0.9"` for an exact revision. Shorter pins take the newest release under that prefix:
-`= "1.11.0"` stays on revisions checked against OpenSpec 1.11.0, and `= "1.11"` follows the 1.11.x
-series without ever crossing into a release built for a different one.
-
-The root `VERSION` file is the source of truth. It must have four numeric fields, its last field must
-equal `version:` in `openspec/schemas/super-sdd/schema.yaml`, and a release tag must be
-`v$(cat VERSION)`; the release workflow refuses to publish otherwise. Releasing is
-`git tag v<version> && git push --tags`, which attaches a `git archive` tarball of the repository to a
-GitHub release.
-
-## Normal use
-
-| Phase | Action |
-|---|---|
-| Plan | Use `openspec-continue-change` to create the next artifact, or `openspec-propose` to prepare implementation prerequisites. |
-| Implement | Use `openspec-apply-change`; it reads all designs and tracks tasks.md. |
-| Verify | Produce verify.md after implementation, with fresh evidence and a passing decision before archive. |
-| Archive | Prepare archive.md, run `openspec-sync-designs`, then `openspec-archive-change`; finalize the record at the reported archive destination. |
-
-Configuration's archive operation guidance coordinates those steps. A prepared record is not proof of
-execution. Never archive after a failed or incomplete sync; OpenSpec's archive does not merge designs.
-The sync skill also works independently when explicitly requested.
-
-Inspect the current workflow with:
-
-```bash
-openspec status --change <change-id> --json
+openspec status --change <change-id> --json          # inspecting a change in flight
 openspec instructions design --change <change-id> --json
 openspec instructions apply --change <change-id> --json
 openspec validate <change-id> --type change --strict --json
 ```
 
+## Versioning
+
+Releases are `<openspec-version>.<super-sdd-revision>`: the OpenSpec CLI version this workflow was
+checked against, then the workflow's own revision. `1.11.0.9` is revision 9 checked against OpenSpec
+1.11.0, and the next revision is 1.11.0.10. Checking against a newer OpenSpec release moves the first
+three fields while the revision carries on. Shorter pins take the newest release under that prefix,
+so `= "1.11.0"` follows revisions for that OpenSpec release and `= "1.11"` follows the series.
+
+`VERSION` is the source of truth: four numeric fields, last field equal to `version:` in
+`openspec/schemas/super-sdd/schema.yaml`, tag equal to `v$(cat VERSION)`. The release workflow
+refuses to publish otherwise, then attaches a `git archive` tarball to a GitHub release.
+
 ## Adaptive designs
 
-The proposal's **Design Documents** table inventories change-local paths, purposes, and durable targets.
-Choose the smallest useful set from the application, existing designs, and user instructions. These are
-examples, not required presets:
+The proposal's Design Documents table inventories change-local paths, purposes, and durable targets,
+and that inventory is the coverage contract. Pick the smallest useful set. These are examples, not
+presets:
 
 | Change | Possible change-local documents |
 |---|---|
@@ -116,50 +111,49 @@ examples, not required presets:
 | Batch ingestion change | designs/ingestion.md, designs/recovery.md |
 | Multiple applications | designs/web/session.md, designs/api/authorization.md |
 
-Each document uses the same small template. `CONTEXT` holds change-local decisions and alternatives.
-`Durable Design: openspec/designs/<target>` sections carry ADDED/MODIFIED/REMOVED content to sync before
-archive. A document may own multiple destinations; a destination has only one owner per change.
-Cross-reference related documents instead of repeating decisions. Update the inventory when the split
-changes. With no durable destination, keep brief context and the explicit `No durable design impact.` line.
+Every document uses the same small template. `CONTEXT` holds change-local decisions and alternatives.
+`Durable Design: openspec/designs/<target>` sections carry the ADDED/MODIFIED/REMOVED content that
+sync merges before archive. One document may own several destinations, but a destination has exactly
+one owner per change, so cross-reference related documents instead of repeating decisions, and update
+the inventory when the split changes. A document with no durable destination keeps brief context plus
+the explicit `No durable design impact.` line.
 
-Paths inside a change start from CLI-reported `changeRoot`. Durable targets start from `planningHome.root`
-and stay inside its `openspec/designs/` tree. Archive paths start from `planningHome.changesDir`.
-Use `artifactPaths.design.existingOutputPaths` for discovery and read every path in apply `contextFiles`.
-
-**Completion limitation:** OpenSpec treats `designs/**/*.md` as done once any matching file exists.
-It does not check the inventory, content, or target ownership. Before tasks, apply, verification approval,
-and sync, the workflow checks the complete set and stops on missing/unlisted files, unfinished content,
-broken design links, or conflicting destinations. These are agent-enforced checks, not CLI validation.
+Paths inside a change start from the CLI-reported `changeRoot`. Durable targets start from
+`planningHome.root` and stay inside its `openspec/designs/` tree; archive paths start from
+`planningHome.changesDir`. Use `artifactPaths.design.existingOutputPaths` for discovery, and read
+every path in apply `contextFiles`.
 
 ## Upgrade existing projects
 
-Bump the pin in `mise.toml`, then `mise install && super-sdd install --force`. That replaces the
-schema and sync skill together; merge any revised config guidance by hand, since an edited
-`openspec/config.yaml` is never overwritten. The schema revision number is informational; it does not
-pin older changes to an older copy of the schema.
+Bump the pin in `mise.toml`, then run `mise install && super-sdd install --force`. That replaces the
+schema and sync skill together. Merge revised config guidance by hand, since an edited
+`openspec/config.yaml` is never overwritten. The revision number is informational and does not pin
+older changes to an older copy of the schema.
 
 For each active legacy change:
 
-1. Resolve `changeRoot` through status JSON. Move its design.md to designs/overview.md inside that root,
-   preserving all context and durable delta sections. Split it further only when useful.
-2. Replace **Durable Design Impact** in the proposal with **Design Documents**, including every local
-   document and its destinations. Use `none` for an explicit no-impact document.
-3. Update design links in tasks and other artifacts. Re-run coverage and verification before proceeding.
+1. Resolve `changeRoot` through status JSON. Move its design.md to designs/overview.md inside that
+   root, preserving all context and durable delta sections. Split it further only when useful.
+2. Replace Durable Design Impact in the proposal with Design Documents, listing every local document
+   and its destinations. Use `none` for an explicit no-impact document.
+3. Update design links in tasks and other artifacts, then re-run coverage and verification.
 
-The sync skill can still read a legacy-only design.md and its old proposal section. Under revision 8,
-however, that file alone does not complete the design artifact: migrate before continuing the workflow.
-If both layouts exist, reconcile them before sync. Leave archived changes untouched.
+The sync skill still reads a legacy-only design.md and its old proposal section, but under the
+current schema that file alone no longer completes the design artifact. Migrate before continuing,
+reconcile both layouts if both exist, and leave archived changes untouched.
 
 ## Maintaining the schema
 
-Templates define document structure; schema instructions define workflow rules. Project `context` is
-injected into artifact instructions, `rules` can add per-artifact guidance, and `operations` supplies
-apply/archive guidance. Unknown schema keys are silently stripped, so do not invent fields for gates.
-Check rendered instructions as well as schema validation. In 1.11.0, `instructions archive` is a reserved
-operation command and does not return the archive artifact's instruction/template. That is why archive
-sequencing lives in `operations.archive.guidance`, which resolves the template through `openspec templates`.
-Likewise, apply's `all_done` response replaces its custom instruction; operation guidance retains the
-verification requirement. See the official
+Templates define document structure and schema instructions define workflow rules. Project `context`
+is injected into artifact instructions, `rules` adds per-artifact guidance, and `operations` supplies
+apply and archive guidance. Unknown schema keys are silently stripped, so do not invent fields for
+gates, and check rendered instructions as well as schema validation.
+
+Two CLI behaviors shape the design. In 1.11.0, `instructions archive` is a reserved operation command
+and returns neither the archive artifact's instruction nor its template, so archive sequencing lives
+in `operations.archive.guidance` and resolves the template through `openspec templates`. Apply's
+`all_done` response likewise replaces its custom instruction, leaving operation guidance to retain
+the verification requirement. See the official
 [schema reference](https://openspec.dev/docs/schemas/schema-yaml),
 [customization guide](https://openspec.dev/docs/customize-schemas), and
 [configuration reference](https://openspec.dev/docs/configuration/config-yaml).
@@ -171,14 +165,13 @@ Preserve these contracts when simplifying:
 - No-spec changes set `skip_specs: true`; retiring a capability sets `retire_capabilities: true`.
 - Only task checklists use checkboxes. Unique task IDs and removal Reason/Migration metadata are
   workflow conventions, not custom-schema CLI checks.
-- Verify retains scope/commit prechecks and evidence decisions. Files existing does not mean these
-  gates passed; verify/archive must happen after implementation, not during initial planning.
+- Verify retains scope and commit prechecks and evidence decisions. Files existing does not mean
+  those gates passed, and verify and archive happen after implementation, not during planning.
 
-On CLI upgrades, check supported schema fields, glob output discovery, and generated apply/archive
-instructions. Run `openspec update` to refresh generated skills; it does not update this custom schema
-or the custom sync skill. Revalidate the schema and all six templates afterward.
+On CLI upgrades, check supported schema fields, glob output discovery, and generated apply and
+archive instructions. `openspec update` refreshes generated skills but leaves this custom schema and
+the custom sync skill alone, so revalidate the schema and all six templates afterward.
 
-Every release raises `version:` in `schema.yaml` and the last field of `VERSION` together, including a
-release that only touches the installer; run `bash test/install_test.sh`, which checks that pairing
-along with the installer's behavior. When you check the workflow against a new OpenSpec release, move
-`VERSION`'s first three fields to that release's version.
+Every release raises `version:` in `schema.yaml` and the last field of `VERSION` together, including
+a release that only touches the installer. Run `bash test/install_test.sh`, which checks that pairing
+along with the installer's behavior.
