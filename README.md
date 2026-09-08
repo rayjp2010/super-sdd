@@ -1,7 +1,7 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Revision **8**, compatible with **OpenSpec CLI 1.11.x**; checked against **1.11.0**.
+Version **1.11.8**: revision **8** for **OpenSpec CLI 1.11.x**; checked against **1.11.0**.
 
 The six artifacts are proposal, specs, design, tasks, verify, and archive. Implementation happens after
 tasks, verification records fresh evidence afterward, and archive records the sync and move results.
@@ -13,23 +13,31 @@ Prerequisites: OpenSpec CLI 1.11.x and the Superpowers skills for brainstorming,
 subagent-driven development, and verification. Those four skills are binding: the relevant phase stops
 if its skill is unavailable. Companion skills support TDD, worktrees, review, and debugging.
 
-From the target project:
+In the target project's `mise.toml`:
 
-```bash
-openspec init
-SUPER_SDD=/path/to/super-sdd
-cp -R "$SUPER_SDD/openspec/schemas/super-sdd" openspec/schemas/
-cp -R "$SUPER_SDD/.agents/skills/openspec-sync-designs" .agents/skills/
+```toml
+[tools]
+"github:rayjp2010/super-sdd" = "1.11.8"
 ```
 
-Set `schema: super-sdd` in `openspec/config.yaml` and merge this repository's `context` and `operations`
-blocks with your project conventions. For a fresh config, copy this repository's config directly.
-If your tool uses `.claude/skills/`, create its directory and link the custom skill there:
+Then, from that project's root:
 
 ```bash
-mkdir -p .claude/skills
-ln -s ../../.agents/skills/openspec-sync-designs .claude/skills/openspec-sync-designs
+mise install
+openspec init          # skip if the project already has openspec/
+super-sdd install
 ```
+
+`super-sdd install` copies the schema into `openspec/schemas/` and the sync skill into
+`.agents/skills/`, mirroring the skill into `.claude/skills/` when that directory already exists.
+It warns, without blocking, when the installed OpenSpec CLI is outside the series this version
+targets. A `openspec/config.yaml` that still holds only the defaults from `openspec init` is replaced
+with this repository's config; one carrying real project settings is left alone, and you merge the
+`context` and `operations` blocks yourself. Existing files are never overwritten without `--force`,
+which is also how you re-run the installer after `mise up`.
+
+Without mise, clone this repository and run its `bin/super-sdd install` from the target project, or
+copy `openspec/schemas/super-sdd` and `.agents/skills/openspec-sync-designs` across by hand.
 
 Use the CLI-generated OpenSpec skills; do not copy their implementations from another project.
 Run all commands from the intended project's root. If mise has the CLI installed but no active version,
@@ -40,6 +48,20 @@ openspec schema validate super-sdd --verbose
 openspec templates --schema super-sdd
 openspec new change <change-id> --schema super-sdd
 ```
+
+## Versioning
+
+Releases are `<openspec-major>.<openspec-minor>.<super-sdd-revision>`. Version `1.11.8` is revision 8
+of this workflow, written for OpenSpec CLI 1.11.x. The revision keeps counting up across OpenSpec
+minor bumps, so 1.11.8 is followed by 1.11.9 and then, once OpenSpec 1.12 lands, by 1.12.10.
+
+Pin `= "1.11.8"` for an exact revision, or `= "1.11"` to take the newest revision written for OpenSpec
+1.11.x while never crossing into a version built for a different CLI series.
+
+The root `VERSION` file is the source of truth. Its patch component must equal `version:` in
+`openspec/schemas/super-sdd/schema.yaml`, and a release tag must be `v$(cat VERSION)`; the release
+workflow refuses to publish otherwise. Releasing is `git tag v<version> && git push --tags`, which
+attaches a `git archive` tarball of the repository to a GitHub release.
 
 ## Normal use
 
@@ -93,8 +115,10 @@ broken design links, or conflicting destinations. These are agent-enforced check
 
 ## Upgrade existing projects
 
-Replace the schema and sync skill together, and merge the revised config guidance. The schema revision
-number is informational; it does not pin older changes to an older copy of the schema.
+Bump the pin in `mise.toml`, then `mise install && super-sdd install --force`. That replaces the
+schema and sync skill together; merge any revised config guidance by hand, since an edited
+`openspec/config.yaml` is never overwritten. The schema revision number is informational; it does not
+pin older changes to an older copy of the schema.
 
 For each active legacy change:
 
@@ -135,3 +159,7 @@ Preserve these contracts when simplifying:
 On CLI upgrades, check supported schema fields, glob output discovery, and generated apply/archive
 instructions. Run `openspec update` to refresh generated skills; it does not update this custom schema
 or the custom sync skill. Revalidate the schema and all six templates afterward.
+
+When you change the schema, raise `version:` in `schema.yaml` and the patch in `VERSION` together, and
+run `bash test/install_test.sh`; it checks that pairing along with the installer's behavior. When the
+targeted OpenSpec series changes, move `VERSION`'s major and minor to match it.

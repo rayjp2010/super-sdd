@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Copies the super-sdd schema and sync skill into an OpenSpec project.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+OPENSPEC_SERIES="${VERSION%.*}"
+
+SCHEMA_SRC="$ROOT/openspec/schemas/super-sdd"
+SKILL_SRC="$ROOT/.agents/skills/openspec-sync-designs"
+CONFIG_SRC="$ROOT/openspec/config.yaml"
+
+warn() { printf 'warning: %s\n' "$*" >&2; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<EOF
+super-sdd $VERSION (OpenSpec CLI ${OPENSPEC_SERIES}.x)
+
+Usage:
+  super-sdd install [--force]   Copy the schema and sync skill into the current project
+  super-sdd version             Print the version and the OpenSpec series it targets
+EOF
+}
+
+check_openspec() {
+  if ! command -v openspec >/dev/null 2>&1; then
+    warn "openspec CLI not found on PATH; super-sdd $VERSION targets OpenSpec ${OPENSPEC_SERIES}.x"
+    return
+  fi
+  local found series
+  # Tolerate a failing CLI: a mise shim with no active version exits non-zero here.
+  found="$(openspec --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+  if [ -z "$found" ]; then
+    warn "could not parse 'openspec --version'; super-sdd $VERSION targets OpenSpec ${OPENSPEC_SERIES}.x"
+    return
+  fi
+  series="${found%.*}"
+  if [ "$series" != "$OPENSPEC_SERIES" ]; then
+    warn "OpenSpec CLI $found is installed, but super-sdd $VERSION targets ${OPENSPEC_SERIES}.x"
+  fi
+}
+
+# Copy $1 into directory $2, refusing to clobber unless $FORCE.
+copy_into() {
+  local src="$1" dest_dir="$2" dest
+  dest="$dest_dir/$(basename "$src")"
+  if [ -e "$dest" ]; then
+    [ "$FORCE" = yes ] || die "$dest already exists; re-run with --force to replace it"
+    rm -rf "$dest"
+  fi
+  mkdir -p "$dest_dir"
+  cp -R "$src" "$dest"
+  printf 'wrote %s\n' "$dest"
+}
+
+# True when config.yaml carries no settings beyond its schema line, which is what
+# 'openspec init' leaves behind: one schema key and a block of example comments.
+config_is_untouched() {
+  ! grep -vE '^[[:space:]]*(#|$)' openspec/config.yaml | grep -qvE '^schema:'
+}
+
+install_cmd() {
+  check_openspec
+  [ -d openspec ] || die "no openspec/ directory here; run 'openspec init' first"
+
+  copy_into "$SCHEMA_SRC" openspec/schemas
+  copy_into "$SKILL_SRC" .agents/skills
+  # Some tools read .claude/skills instead; mirror there only if the project already uses it.
+  if [ -d .claude/skills ]; then
+    copy_into "$SKILL_SRC" .claude/skills
+  fi
+
+  if [ ! -f openspec/config.yaml ] || config_is_untouched; then
+    cp "$CONFIG_SRC" openspec/config.yaml
+    printf 'wrote openspec/config.yaml\n'
+  else
+    printf 'kept openspec/config.yaml; set "schema: super-sdd" and merge the context and\n'
+    printf 'operations blocks from %s\n' "$CONFIG_SRC"
+  fi
+
+  printf '\nnext: openspec schema validate super-sdd --verbose\n'
+}
+
+FORCE=no
+cmd="${1:-}"
+shift || true
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE=yes ;;
+    *) die "unknown option: $arg" ;;
+  esac
+done
+
+case "$cmd" in
+  install) install_cmd ;;
+  version) printf '%s (OpenSpec CLI %s.x)\n' "$VERSION" "$OPENSPEC_SERIES" ;;
+  ""|-h|--help|help) usage ;;
+  *) usage >&2; exit 1 ;;
+esac
