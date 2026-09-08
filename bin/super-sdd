@@ -22,11 +22,14 @@ usage() {
 super-sdd $VERSION ($TARGET)
 
 Usage:
-  super-sdd install [--force] [--no-openspec]
-      Copy the schema and sync skill into the current project, and pin
-      npm:@fission-ai/openspec@${OPENSPEC_VERSION} in its mise.toml.
-      --force         Replace files that already exist
-      --no-openspec   Leave mise.toml alone
+  super-sdd install [--force] [--no-openspec] [--no-init] [--tools <list>]
+      Set up super-sdd in the current project: pin and install
+      npm:@fission-ai/openspec@${OPENSPEC_VERSION}, run openspec init when
+      openspec/ is missing, then copy in the schema and sync skill.
+      --force          Replace files that already exist
+      --no-openspec    Leave mise.toml alone
+      --no-init        Never run openspec init; fail if openspec/ is missing
+      --tools <list>   Tools to pass to openspec init (default: claude)
   super-sdd version
       Print the version and the OpenSpec release it targets
 EOF
@@ -67,6 +70,20 @@ pin_openspec() {
   fi
 }
 
+# Run the OpenSpec CLI at the version this release targets. Going through mise exec
+# rather than PATH means the right version runs even when the caller's shell resolves
+# openspec to a shim with no active version, which is the state that broke the old
+# init-then-install order.
+run_openspec() {
+  if command -v mise >/dev/null 2>&1; then
+    mise exec "npm:@fission-ai/openspec@$OPENSPEC_VERSION" -- openspec "$@"
+  elif command -v openspec >/dev/null 2>&1; then
+    openspec "$@"
+  else
+    die "no OpenSpec CLI available; install mise, or run 'openspec init' yourself"
+  fi
+}
+
 # Clear an existing destination, or stop unless $FORCE. The -L test matters on its own
 # because -e is false for a dangling symlink, which ln would then refuse to replace.
 clear_dest() {
@@ -103,13 +120,22 @@ config_is_untouched() {
 }
 
 install_cmd() {
-  [ -d openspec ] || die "no openspec/ directory here; run 'openspec init' first"
-
-  # Pin before checking, so the check sees a CLI this run just made available.
+  # Pin first: it installs the CLI that openspec init needs, and it lets the version
+  # check below see a CLI this run just made available.
   if [ "$PIN_OPENSPEC" = yes ]; then
     pin_openspec
   fi
   check_openspec
+
+  # init also creates the tool's skills directory, which decides whether the
+  # .claude/skills mirror below happens at all.
+  if [ ! -d openspec ]; then
+    [ "$RUN_INIT" = yes ] || die "no openspec/ directory here; run 'openspec init' or drop --no-init"
+    printf 'running openspec init --tools %s\n' "$TOOLS"
+    run_openspec init --tools "$TOOLS" --no-animation >/dev/null
+    [ -d openspec ] || die "openspec init did not create openspec/"
+    printf 'wrote openspec/\n'
+  fi
 
   copy_into "$SCHEMA_SRC" openspec/schemas
   copy_into "$SKILL_SRC" .agents/skills
@@ -132,14 +158,20 @@ install_cmd() {
 
 FORCE=no
 PIN_OPENSPEC=yes
+RUN_INIT=yes
+TOOLS=claude
 cmd="${1:-}"
 shift || true
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --force) FORCE=yes ;;
     --no-openspec) PIN_OPENSPEC=no ;;
-    *) die "unknown option: $arg" ;;
+    --no-init) RUN_INIT=no ;;
+    --tools) shift; [ $# -gt 0 ] || die "--tools needs a value"; TOOLS="$1" ;;
+    --tools=*) TOOLS="${1#--tools=}" ;;
+    *) die "unknown option: $1" ;;
   esac
+  shift
 done
 
 case "$cmd" in
