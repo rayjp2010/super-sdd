@@ -67,17 +67,33 @@ pin_openspec() {
   fi
 }
 
-# Copy $1 into directory $2, refusing to clobber unless $FORCE.
+# Clear an existing destination, or stop unless $FORCE. The -L test matters on its own
+# because -e is false for a dangling symlink, which ln would then refuse to replace.
+clear_dest() {
+  if [ -e "$1" ] || [ -L "$1" ]; then
+    [ "$FORCE" = yes ] || die "$1 already exists; re-run with --force to replace it"
+    rm -rf "$1"
+  fi
+}
+
+# Copy $1 into directory $2.
 copy_into() {
   local src="$1" dest_dir="$2" dest
   dest="$dest_dir/$(basename "$src")"
-  if [ -e "$dest" ]; then
-    [ "$FORCE" = yes ] || die "$dest already exists; re-run with --force to replace it"
-    rm -rf "$dest"
-  fi
+  clear_dest "$dest"
   mkdir -p "$dest_dir"
   cp -R "$src" "$dest"
   printf 'wrote %s\n' "$dest"
+}
+
+# Symlink $1 into directory $2. The target is relative to $2, not to the current
+# directory, so the link survives the project moving.
+link_into() {
+  local target="$1" dest_dir="$2" dest
+  dest="$dest_dir/$(basename "$target")"
+  clear_dest "$dest"
+  ln -s "$target" "$dest"
+  printf 'linked %s -> %s\n' "$dest" "$target"
 }
 
 # True when config.yaml carries no settings beyond its schema line, which is what
@@ -97,9 +113,10 @@ install_cmd() {
 
   copy_into "$SCHEMA_SRC" openspec/schemas
   copy_into "$SKILL_SRC" .agents/skills
-  # Some tools read .claude/skills instead; mirror there only if the project already uses it.
+  # Some tools read .claude/skills instead. Link rather than copy, so the project holds
+  # one copy of the skill and the two locations cannot drift apart.
   if [ -d .claude/skills ]; then
-    copy_into "$SKILL_SRC" .claude/skills
+    link_into "../../.agents/skills/$(basename "$SKILL_SRC")" .claude/skills
   fi
 
   if [ ! -f openspec/config.yaml ] || config_is_untouched; then

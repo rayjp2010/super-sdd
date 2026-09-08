@@ -61,8 +61,8 @@ your-project/
   mise.toml                                pins npm:@fission-ai/openspec alongside super-sdd
   openspec/config.yaml                     replaced only when untouched since openspec init
   openspec/schemas/super-sdd/              schema.yaml and the six templates
-  .agents/skills/openspec-sync-designs/
-  .claude/skills/openspec-sync-designs/    only when .claude/skills already exists
+  .agents/skills/openspec-sync-designs/    the project's one copy of the sync skill
+  .claude/skills/openspec-sync-designs     symlink to it, when .claude/skills already exists
 ```
 
 A config.yaml carrying real project settings is left alone, and you merge its `context` and
