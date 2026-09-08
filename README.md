@@ -1,7 +1,7 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Version **1.11.0.8**: revision **8**, checked against **OpenSpec CLI 1.11.0** and compatible with **1.11.x**.
+Version **1.11.0.9**: revision **9**, checked against **OpenSpec CLI 1.11.0** and compatible with **1.11.x**.
 
 The six artifacts are proposal, specs, design, tasks, verify, and archive. Implementation happens after
 tasks, verification records fresh evidence afterward, and archive records the sync and move results.
@@ -17,7 +17,7 @@ In the target project's `mise.toml`:
 
 ```toml
 [tools]
-"github:rayjp2010/super-sdd" = "1.11.0.8"
+"github:rayjp2010/super-sdd" = "1.11.0.9"
 ```
 
 Then, from that project's root:
@@ -30,11 +30,23 @@ super-sdd install
 
 `super-sdd install` copies the schema into `openspec/schemas/` and the sync skill into
 `.agents/skills/`, mirroring the skill into `.claude/skills/` when that directory already exists.
-It warns, without blocking, when the installed OpenSpec CLI is outside the series this version
-targets. A `openspec/config.yaml` that still holds only the defaults from `openspec init` is replaced
-with this repository's config; one carrying real project settings is left alone, and you merge the
-`context` and `operations` blocks yourself. Existing files are never overwritten without `--force`,
-which is also how you re-run the installer after `mise up`.
+A `openspec/config.yaml` that still holds only the defaults from `openspec init` is replaced with this
+repository's config; one carrying real project settings is left alone, and you merge the `context` and
+`operations` blocks yourself. Existing files are never overwritten without `--force`, which is also how
+you re-run the installer after `mise up`.
+
+It also pins the matching OpenSpec CLI in the project's `mise.toml`, creating the file if it is absent
+and replacing any existing pin:
+
+```toml
+[tools]
+"npm:@fission-ai/openspec" = "1.11.0"
+```
+
+so `mise install` alone sets up a fresh checkout with both tools. Pass `--no-openspec` to leave
+`mise.toml` untouched. If mise is missing, or refuses to edit an untrusted config, the installer prints
+the `mise use` line to run and carries on. It then warns, without blocking, when the OpenSpec CLI it
+finds is outside the series this version targets.
 
 Without mise, clone this repository and run its `bin/super-sdd install` from the target project, or
 copy `openspec/schemas/super-sdd` and `.agents/skills/openspec-sync-designs` across by hand.
@@ -52,21 +64,22 @@ openspec new change <change-id> --schema super-sdd
 ## Versioning
 
 Releases are `<openspec-version>.<super-sdd-revision>`: the full OpenSpec CLI version this workflow
-was checked against, then this workflow's own revision. Version `1.11.0.8` is revision 8, checked
+was checked against, then this workflow's own revision. Version `1.11.0.9` is revision 9, checked
 against OpenSpec CLI 1.11.0.
 
-The revision keeps counting up as the workflow changes, so 1.11.0.8 is followed by 1.11.0.9. When a
+The revision keeps counting up as the workflow changes, so 1.11.0.9 is followed by 1.11.0.10. When a
 new OpenSpec release is checked, the first three fields move to it and the revision carries on:
 1.11.1.10, then 1.12.0.11.
 
-Pin `= "1.11.0.8"` for an exact revision. Shorter pins take the newest release under that prefix:
+Pin `= "1.11.0.9"` for an exact revision. Shorter pins take the newest release under that prefix:
 `= "1.11.0"` stays on revisions checked against OpenSpec 1.11.0, and `= "1.11"` follows the 1.11.x
 series without ever crossing into a release built for a different one.
 
 The root `VERSION` file is the source of truth. It must have four numeric fields, its last field must
 equal `version:` in `openspec/schemas/super-sdd/schema.yaml`, and a release tag must be
-`v$(cat VERSION)`; the release workflow refuses to publish otherwise. Releasing is `git tag v<version> && git push --tags`, which
-attaches a `git archive` tarball of the repository to a GitHub release.
+`v$(cat VERSION)`; the release workflow refuses to publish otherwise. Releasing is
+`git tag v<version> && git push --tags`, which attaches a `git archive` tarball of the repository to a
+GitHub release.
 
 ## Normal use
 
@@ -165,7 +178,7 @@ On CLI upgrades, check supported schema fields, glob output discovery, and gener
 instructions. Run `openspec update` to refresh generated skills; it does not update this custom schema
 or the custom sync skill. Revalidate the schema and all six templates afterward.
 
-When you change the schema, raise `version:` in `schema.yaml` and the last field of `VERSION` together,
-and run `bash test/install_test.sh`; it checks that pairing along with the installer's behavior. When
-you check the workflow against a new OpenSpec release, move `VERSION`'s first three fields to that
-release's version.
+Every release raises `version:` in `schema.yaml` and the last field of `VERSION` together, including a
+release that only touches the installer; run `bash test/install_test.sh`, which checks that pairing
+along with the installer's behavior. When you check the workflow against a new OpenSpec release, move
+`VERSION`'s first three fields to that release's version.
