@@ -1,0 +1,26 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag, VERSION, and schema revision agree
+        run: bash test/version_check.sh "$GITHUB_REF_NAME"
+
+      - name: Build and publish the release tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="$(tr -d '[:space:]' < VERSION)"
+          git archive --prefix="super-sdd-$VER/" -o "super-sdd-$VER.tar.gz" "$GITHUB_REF_NAME"
+          gh release create "$GITHUB_REF_NAME" "super-sdd-$VER.tar.gz" --generate-notes
