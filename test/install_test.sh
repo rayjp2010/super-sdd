@@ -45,6 +45,14 @@ if [ -e .claude/skills/openspec-sync-designs ]; then
 fi
 mkdir -p .claude/skills
 "$CLI" install --force >/dev/null
+assert_file .claude/skills/openspec-sync-designs/SKILL.md      # resolves through the link
+[ -L .claude/skills/openspec-sync-designs ] || { printf 'FAIL: mirror is not a symlink\n' >&2; exit 1; }
+[ "$(readlink .claude/skills/openspec-sync-designs)" = "../../.agents/skills/openspec-sync-designs" ] \
+  || { printf 'FAIL: mirror link is not relative to the project\n' >&2; exit 1; }
+
+# A dangling link is still replaceable: -e alone reports it as absent.
+rm -rf .agents/skills/openspec-sync-designs
+"$CLI" install --force >/dev/null
 assert_file .claude/skills/openspec-sync-designs/SKILL.md
 
 # Not an OpenSpec project.
