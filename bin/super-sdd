@@ -4,7 +4,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
-OPENSPEC_SERIES="${VERSION%.*}"
+# VERSION is <openspec-version>.<revision>, so dropping the last field leaves the
+# exact OpenSpec release this was checked against, and dropping two leaves its series.
+OPENSPEC_VERSION="${VERSION%.*}"
+OPENSPEC_SERIES="${OPENSPEC_VERSION%.*}"
+TARGET="OpenSpec ${OPENSPEC_SERIES}.x, checked against ${OPENSPEC_VERSION}"
 
 SCHEMA_SRC="$ROOT/openspec/schemas/super-sdd"
 SKILL_SRC="$ROOT/.agents/skills/openspec-sync-designs"
@@ -15,29 +19,29 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<EOF
-super-sdd $VERSION (OpenSpec CLI ${OPENSPEC_SERIES}.x)
+super-sdd $VERSION ($TARGET)
 
 Usage:
   super-sdd install [--force]   Copy the schema and sync skill into the current project
-  super-sdd version             Print the version and the OpenSpec series it targets
+  super-sdd version             Print the version and the OpenSpec release it targets
 EOF
 }
 
 check_openspec() {
   if ! command -v openspec >/dev/null 2>&1; then
-    warn "openspec CLI not found on PATH; super-sdd $VERSION targets OpenSpec ${OPENSPEC_SERIES}.x"
+    warn "openspec CLI not found on PATH; super-sdd $VERSION targets $TARGET"
     return
   fi
   local found series
   # Tolerate a failing CLI: a mise shim with no active version exits non-zero here.
   found="$(openspec --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
   if [ -z "$found" ]; then
-    warn "could not parse 'openspec --version'; super-sdd $VERSION targets OpenSpec ${OPENSPEC_SERIES}.x"
+    warn "could not parse 'openspec --version'; super-sdd $VERSION targets $TARGET"
     return
   fi
   series="${found%.*}"
   if [ "$series" != "$OPENSPEC_SERIES" ]; then
-    warn "OpenSpec CLI $found is installed, but super-sdd $VERSION targets ${OPENSPEC_SERIES}.x"
+    warn "OpenSpec CLI $found is installed, but super-sdd $VERSION targets $TARGET"
   fi
 }
 
@@ -94,7 +98,7 @@ done
 
 case "$cmd" in
   install) install_cmd ;;
-  version) printf '%s (OpenSpec CLI %s.x)\n' "$VERSION" "$OPENSPEC_SERIES" ;;
+  version) printf '%s (%s)\n' "$VERSION" "$TARGET" ;;
   ""|-h|--help|help) usage ;;
   *) usage >&2; exit 1 ;;
 esac
