@@ -1,7 +1,7 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Version 1.11.0.9: revision 9, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
+Version 1.11.0.10: revision 10, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
 
 ```mermaid
 flowchart TD
@@ -45,7 +45,7 @@ its skill is unavailable. Companion skills support TDD, worktrees, review, and d
 
 ```toml
 [tools]
-"github:rayjp2010/super-sdd" = "1.11.0.9"
+"github:rayjp2010/super-sdd" = "1.11.0.10"
 ```
 
 ```bash
@@ -89,8 +89,8 @@ openspec validate <change-id> --type change --strict --json
 ## Versioning
 
 Releases are `<openspec-version>.<super-sdd-revision>`: the OpenSpec CLI version this workflow was
-checked against, then the workflow's own revision. `1.11.0.9` is revision 9 checked against OpenSpec
-1.11.0, and the next revision is 1.11.0.10. Checking against a newer OpenSpec release moves the first
+checked against, then the workflow's own revision. `1.11.0.10` is revision 10 checked against OpenSpec
+1.11.0, and the next revision is 1.11.0.11. Checking against a newer OpenSpec release moves the first
 three fields while the revision carries on. Shorter pins take the newest release under that prefix,
 so `= "1.11.0"` follows revisions for that OpenSpec release and `= "1.11"` follows the series.
 
