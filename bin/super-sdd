@@ -29,7 +29,9 @@ Usage:
       --force          Replace files that already exist
       --no-openspec    Leave mise.toml alone
       --no-init        Never run openspec init; fail if openspec/ is missing
-      --tools <list>   Tools to pass to openspec init (default: claude)
+      --tools <list>   Which agent tools this project uses (default: claude).
+                       Passed to openspec init, and naming claude also mirrors
+                       the sync skill into .claude/skills.
   super-sdd version
       Print the version and the OpenSpec release it targets
 EOF
@@ -113,6 +115,15 @@ link_into() {
   printf 'linked %s -> %s\n' "$dest" "$target"
 }
 
+# True when $TOOLS names Claude. Comma-delimited matching avoids grep word boundaries,
+# which are not portable, and handles lists like "codex,claude".
+tools_include_claude() {
+  case ",$TOOLS," in
+    *,claude,*|*,all,*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # True when config.yaml carries no settings beyond its schema line, which is what
 # 'openspec init' leaves behind: one schema key and a block of example comments.
 config_is_untouched() {
@@ -139,9 +150,13 @@ install_cmd() {
 
   copy_into "$SCHEMA_SRC" openspec/schemas
   copy_into "$SKILL_SRC" .agents/skills
-  # Some tools read .claude/skills instead. Link rather than copy, so the project holds
-  # one copy of the skill and the two locations cannot drift apart.
-  if [ -d .claude/skills ]; then
+  # Claude reads .claude/skills. Mirror when --tools names Claude, creating the directory
+  # if needed: a project that already had openspec/ skips init, so nothing else would ever
+  # create it. Also mirror when the directory exists regardless of --tools, so an existing
+  # Claude project keeps working. Link rather than copy, so the project holds one copy of
+  # the skill and the two locations cannot drift apart.
+  if tools_include_claude || [ -d .claude/skills ]; then
+    mkdir -p .claude/skills
     link_into "../../.agents/skills/$(basename "$SKILL_SRC")" .claude/skills
   fi
 
