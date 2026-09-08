@@ -1,7 +1,7 @@
 # super-sdd
 
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
-Version 1.11.0.12: revision 12, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
+Version 1.11.0.13: revision 13, checked against OpenSpec CLI 1.11.0 and compatible with 1.11.x.
 
 ```mermaid
 flowchart TD
@@ -45,7 +45,7 @@ its skill is unavailable. Companion skills support TDD, worktrees, review, and d
 
 ```toml
 [tools]
-"github:rayjp2010/super-sdd" = "1.11.0.12"
+"github:rayjp2010/super-sdd" = "1.11.0.13"
 ```
 
 ```bash
@@ -67,11 +67,15 @@ your-project/
   openspec/config.yaml                     replaced only when untouched since openspec init
   openspec/schemas/super-sdd/              schema.yaml and the six templates
   .agents/skills/openspec-sync-designs/    the project's one copy of the sync skill
-  .claude/skills/openspec-sync-designs     symlink to it, when the tool uses .claude/skills
+  .claude/skills/openspec-sync-designs     symlink to it, created when --tools names claude
 ```
 
-The mirror only appears when the chosen tool writes `.claude/skills`, so `--tools agents` leaves no
-`.claude` directory behind. A config.yaml carrying real project settings is left alone, and you merge
+`--tools` declares which agent the project uses. It is passed to `openspec init`, and naming `claude`
+also mirrors the sync skill into `.claude/skills`, creating that directory when it is missing. That
+matters for a project that adopted OpenSpec before super-sdd: `openspec/` already exists, so init
+never runs, and nothing else would create the directory. `--tools agents` leaves no `.claude` behind,
+though an existing `.claude/skills` is always mirrored whatever `--tools` says. A config.yaml
+carrying real project settings is left alone, and you merge
 its `context` and `operations` blocks yourself. Nothing else is overwritten without `--force`, which
 is also how you re-run the installer after `mise up`. `--no-openspec` leaves `mise.toml` alone. When
 mise is missing or refuses to edit an untrusted config, the installer prints the `mise use` line to
@@ -96,8 +100,8 @@ openspec validate <change-id> --type change --strict --json
 ## Versioning
 
 Releases are `<openspec-version>.<super-sdd-revision>`: the OpenSpec CLI version this workflow was
-checked against, then the workflow's own revision. `1.11.0.12` is revision 12 checked against OpenSpec
-1.11.0, and the next revision is 1.11.0.13. Checking against a newer OpenSpec release moves the first
+checked against, then the workflow's own revision. `1.11.0.13` is revision 13 checked against OpenSpec
+1.11.0, and the next revision is 1.11.0.14. Checking against a newer OpenSpec release moves the first
 three fields while the revision carries on. Shorter pins take the newest release under that prefix,
 so `= "1.11.0"` follows revisions for that OpenSpec release and `= "1.11"` follows the series.
 
