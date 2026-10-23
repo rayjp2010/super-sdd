@@ -1,0 +1,21 @@
+{
+  "name": "example-flowchart",
+  "nodes": [
+    { "id": "start", "role": "terminal", "label": "Order received", "cx": 200, "cy": 50 },
+    { "id": "reserve", "role": "step", "label": "Reserve stock", "cx": 200, "cy": 140 },
+    { "id": "in-stock", "role": "decision", "label": "In stock?", "cx": 200, "cy": 250 },
+    { "id": "backorder", "role": "step", "label": "Back-order missing items", "cx": 460, "cy": 250 },
+    { "id": "notify", "role": "step", "label": "Email the new delivery date", "cx": 460, "cy": 350 },
+    { "id": "charge", "role": "step", "label": "Charge the card", "cx": 200, "cy": 450 },
+    { "id": "confirmed", "role": "terminal", "label": "Order confirmed", "cx": 200, "cy": 540 }
+  ],
+  "edges": [
+    { "from": "start", "to": "reserve" },
+    { "from": "reserve", "to": "in-stock" },
+    { "from": "in-stock", "to": "charge", "label": "Yes" },
+    { "from": "in-stock", "to": "backorder", "label": "No" },
+    { "from": "backorder", "to": "notify" },
+    { "from": "notify", "to": "charge", "exit": "bottom", "entry": "right" },
+    { "from": "charge", "to": "confirmed" }
+  ]
+}

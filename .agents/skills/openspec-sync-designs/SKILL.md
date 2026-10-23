@@ -1,7 +1,7 @@
 ---
 name: openspec-sync-designs
-description: Sync all of a change's durable design deltas into openspec/designs/ before archiving. Use when asked to sync designs or prepare design sync for archive, including multiple designs/**/*.md documents and legacy design.md changes. OpenSpec's spec sync and archive do not merge designs.
-compatibility: Requires OpenSpec CLI 1.11.x and filesystem access.
+description: Sync all of a change's durable design deltas into openspec/designs/ before archiving. Use when asked to sync designs or prepare design sync for archive, including changes with multiple designs/**/*.md documents. OpenSpec's spec sync and archive do not merge designs.
+compatibility: Requires OpenSpec CLI 1.14.x and filesystem access.
 metadata:
   author: rui
   version: "2.0"
@@ -21,16 +21,12 @@ Run `openspec status --change <name> --json`. Resolve:
 - The proposal from `artifactPaths.proposal.existingOutputPaths`.
 - Durable destinations from `planningHome.root`, under its `openspec/designs/` tree.
 
-Read every reported design file, not just the first. Read the proposal's **Design Documents** inventory.
-Also inspect `changeRoot` for legacy `design.md` and files under `designs/` so neither layout is hidden by
-an old schema's output pattern. A missing design set is an error, not a no-op.
+**Verification gate:** when the schema defines a `verify` artifact, `verify.md` in `changeRoot` must
+hold exactly one column-1 `Decision: PASS` or `Decision: PASS WITH WARNINGS` line. Otherwise stop
+before any write and report that the change returns to verification.
 
-**Legacy changes:** if only `design.md` exists, read it and reconcile its targets against the proposal's
-**Durable Design Impact** section. Legacy-only sync remains supported even when a newer schema reports
-no matching outputs. If both layouts exist, stop before writes and reconcile them into the new layout
-and inventory; never merge both blindly or silently ignore either. For continued work under revision 8,
-migrate the legacy file to `designs/overview.md` and update the inventory and links first. Do not rewrite
-archived changes as part of migration.
+Read every reported design file, not just the first. Read the proposal's **Design Documents** inventory.
+A missing design set is an error, not a no-op.
 
 ## 2. Check full coverage before editing
 
@@ -44,8 +40,7 @@ Compare the complete actual file set with the proposal inventory, then read all 
 - Each inventoried destination must have exactly one nonempty `## Durable Design: <target>` section
   in its owning document. No undeclared targets or duplicate target ownership, even if deltas agree.
 - Each document without destinations must explicitly say `No durable design impact.` and contain no
-  durable delta sections. Missing sections without this marker are an error. In legacy mode, also require
-  the proposal's explicit no-impact declaration for a no-op.
+  durable delta sections. Missing sections without this marker are an error.
 - Resolve target paths against `planningHome.root`. Reject targets that escape its `openspec/designs/`
   tree, including through symlinks. Compare normalized destinations to catch duplicate aliases.
 - Read every existing destination and identify all ADDED/MODIFIED/REMOVED operations before any writes.
@@ -71,7 +66,10 @@ Use only the operations present:
 For Markdown, merge by headings. For OpenAPI, JSON Schema, or other structured formats, merge by natural
 keys (for example, path + operation + schema), not Markdown headings. Preserve valid syntax and use
 available format validation. Create missing destinations from ADDED content, following neighboring
-conventions. Keep flow, sequence, and state diagrams in Mermaid.
+conventions. Keep each diagram in the format the delta uses (Mermaid or `.drawio.svg`, per the
+`technical-diagrams` skill); copy a delta's `.drawio.svg` files into the `diagrams/` folder beside the
+destination document (for example `openspec/designs/api/diagrams/`) and keep its links working. A new
+destination document also gets a row in `openspec/designs/README.md`. Merged content follows the `design-docs` skill's template and writing rules.
 
 Merge synchronously while `changeRoot` still exists. If an error occurs after some writes, report the
 partial results and stop; do not claim success or proceed to archive. A rerun should recognize already
@@ -85,5 +83,6 @@ If any mismatch remains, report it as a failure and block archive.
 
 Report one row per source/destination with `synced`, `already synced`, `no-impact`, or `failed`, plus a
 brief description of changed sections/keys. Include no-impact source documents even in mixed changes.
-Record this result in the change's prepared archive.md when present. On complete success, the caller
-can run `openspec-archive-change` to sync specs and move the change folder. This skill never moves it.
+On complete success, the caller (normally `openspec-archive-change`, through its operation guidance)
+continues with spec sync and the move. On any failure it must stop the archive. This skill never moves
+the change.

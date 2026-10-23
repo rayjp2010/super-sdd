@@ -1,9 +1,13 @@
 name: super-sdd
-version: 14
+version: 15
 description: Adaptive design documents, Superpowers-assisted implementation, and evidence gates
 
 # Use only OpenSpec-supported fields; unknown keys are silently stripped.
-# Templates own document structure; instructions own workflow rules.
+# Templates own document structure; instructions own workflow rules. The schema has no shared-context
+# or archive-operation field, so shared rules repeat per artifact and design sync before archive is
+# wired by a one-line operations.archive.guidance entry in config.yaml naming openspec-sync-designs.
+# No artifact is named archive: openspec instructions archive returns operation inputs, never an
+# artifact's instruction or template.
 artifacts:
   - id: proposal
     generates: proposal.md
@@ -14,17 +18,30 @@ artifacts:
       Settle why, what, and scope from the user instructions and project context. Record sources read,
       a brief motivation, changes (mark BREAKING), impact, and one provisional intended direction.
       Leave approach comparison to design.
+      Shared rules: write only inside changeRoot from CLI JSON and resolve durable paths from
+      planningHome.root. Keep the artifact proportional: remove unused template sections and
+      instructional comments, honor project conventions and user instructions, and do not repeat
+      content another document owns.
+
+      openspec/specs/ owns durable behavior (external, black-box); openspec/designs/ owns durable
+      technical design: architecture, API contracts, data model, state machines, event contracts,
+      caching and retry, security model, deployment topology, algorithms, migration approach. The list
+      is open. Capabilities record behavior changes; Design Documents record the rest.
 
       Capabilities: name each exact delta path, specs/<capability-path>/spec.md. Follow the existing
-      durable layout; use kebab-case for new segments and allow nesting. A modified capability must
-      already exist under <planningHome.root>/openspec/specs/; otherwise it is new. For no behavioral
-      change, explain why and set skip_specs: true in <changeRoot>/.openspec.yaml. Do not invent specs.
+      durable layout; use kebab-case for new segments and allow nesting. Name a new capability for a
+      durable system behavior (user-auth), not this change's work (add-login-endpoint). Confirm
+      existing paths with openspec list --specs, and read related ones in full with openspec show
+      "<spec-id>" --type spec; reuse an existing path rather than add a near-duplicate. A modified
+      capability must already exist under <planningHome.root>/openspec/specs/; otherwise it is new.
+      For no behavioral change, explain why and set skip_specs: true in <changeRoot>/.openspec.yaml.
+      Do not invent specs.
 
       Design Documents: list each planned designs/<topic>.md, its purpose, and durable destinations
       (openspec/designs/... paths, or none). Choose the smallest useful set from the user's instructions,
       target application, existing designs, and change scope. Use descriptive kebab-case names and
-      application subdirectories when helpful; do not impose fixed document types. One document may own several durable targets, but each target
-      has exactly one owning document in this change. A small or no-impact change can use only
+      application subdirectories when helpful; do not impose fixed document types. One document may
+      own several durable targets, but each target has exactly one owning document in this change. A small or no-impact change can use only
       designs/overview.md. This inventory is the coverage contract, not a separate manifest.
 
       Done when scope is clear, every capability has a path or specs are explicitly skipped, and at
@@ -38,11 +55,21 @@ artifacts:
     instruction: |
       Write one delta per inventoried capability at specs/<capability-path>/spec.md. Describe externally
       observable behavior; put technical choices in designs/ and execution steps in tasks.md.
-      If skip_specs is set, create no spec files.
+      Shared rules: write only inside changeRoot from CLI JSON and resolve durable paths from
+      planningHome.root. Keep the artifact proportional: remove unused template sections and
+      instructional comments, honor project conventions and user instructions, and do not repeat
+      content another document owns.
+      If skip_specs is set, create no spec files. Write the files one at a time: start with the first
+      inventoried capability that has no file, write each as soon as it is drafted, and do not rewrite
+      an existing file unless asked.
 
       Use only needed operation sections: ADDED, MODIFIED, REMOVED, RENAMED Requirements.
       Every ADDED/MODIFIED requirement needs a SHALL or MUST in its body and at least one non-fenced
       #### Scenario: heading with WHEN/THEN bullets. A keyword only in the requirement title is invalid.
+      Keep each ADDED requirement's description (text before its first scenario) at 500 characters or
+      fewer; --strict validation fails a longer one. State one behavior per requirement, move examples
+      and edge cases into scenarios, and split a multi-behavior requirement. Never split or trim a
+      MODIFIED requirement just to meet the limit.
       For MODIFIED, copy the entire existing requirement including every scenario from
       <planningHome.root>/openspec/specs/<capability-path>/spec.md, then edit it. Preserve its name
       (whitespace-insensitive); omitted scenarios are lost at sync. Use ADDED for a new concern.
@@ -68,6 +95,21 @@ artifacts:
       changes. Refine the proposal's Design Documents inventory as needed, then create every listed file
       under designs/, applying this template separately to each. Keep the smallest useful set; do not
       generate a catalog of documents merely because the application could have them.
+      Shared rules: write only inside changeRoot from CLI JSON and resolve durable paths from
+      planningHome.root. Keep the artifact proportional: remove unused template sections and
+      instructional comments, honor project conventions and user instructions, and do not repeat
+      content another document owns.
+
+      Write durable content with the design-docs skill: its template per document kind, its writing
+      rules, and its ste-lint (--kind <kind>) on every durable document touched. Add each new durable
+      document to openspec/designs/README.md. State self-contained constraints without PRD citations or
+      unexplained requirement IDs. Body sections state rules; reasons and rejected alternatives go in
+      ## Decisions. Preserve decisions, invariants, tradeoffs, recovery paths and validation caveats, and
+      mark which mechanisms are implemented, planned or open. These rules cover durable content only;
+      CONTEXT and the routing wrappers below stay as this schema requires.
+      Diagrams follow the technical-diagrams skill: Mermaid inline for sequence, ER and state diagrams
+      only; an editable .drawio.svg in diagrams/ beside the document for every flowchart, architecture,
+      topology and dependency map. No ASCII-art boxes, inline arrow chains or PNG/JPEG.
 
       Each document contains ## CONTEXT: its chosen approach, alternatives considered, and rationale.
       Keep it brief for simple changes. Cross-reference other documents instead of repeating decisions.
@@ -82,7 +124,7 @@ artifacts:
       Read every file: resolve missing/unlisted files, unfinished placeholders, broken local design links,
       absent or undeclared target sections, duplicate target ownership, and contradictory no-impact markers.
       Each inventoried target must have one nonempty delta section; a document with no target must have
-      the explicit no-impact marker. Reconcile legacy design.md if present; do not silently ignore it.
+      the explicit no-impact marker.
       Stop the next phase until mismatches are resolved. OpenSpec marks this glob done after ONE file
       exists; status and structural validation do not establish full coverage or content correctness.
 
@@ -100,7 +142,12 @@ artifacts:
 
       Fetch openspec instructions design --change <id> --json and run its Design Coverage Check
       against every reported design file before writing tasks.
-      Reference the relevant design paths in tasks; do not repeat durable content or rationale.
+      tasks.md is the change-local plan only: file list, checklist and execution steps. Reference the
+      relevant design paths; do not repeat durable design or its rationale.
+      Shared rules: write only inside changeRoot from CLI JSON and resolve durable paths from
+      planningHome.root. Keep the artifact proportional: remove unused template sections and
+      instructional comments, honor project conventions and user instructions, and do not repeat
+      content another document owns.
       Write exactly one Scope: runtime or Scope: no-runtime line at column 1. Runtime means production
       behavior changes; no-runtime covers schema, config, specs, or docs only.
 
@@ -108,6 +155,8 @@ artifacts:
       - [ ] N.M task IDs matching the group. Each task states its completion check. These are the only
       checkboxes anywhere in tasks.md because apply counts every checkbox; custom schemas do not get
       the CLI's task-numbering warnings.
+      Each group lands the tests and documentation its own work calls for; never collect them into
+      a final group, which is for cross-group integration checks only.
       Give each checklist task execution steps with exact files and commands, sized around 2-5 minutes.
       Use RED/GREEN/REFACTOR for runtime changes; explicitly label no-runtime steps where TDD does not apply.
       Record validation commands and review checkpoints; include recovery and deferred items when relevant.
@@ -125,6 +174,10 @@ artifacts:
       If unavailable, stop and report that it must be enabled for this project; do not improvise a substitute.
 
       Write after implementation tasks are complete or safely deferred; overwrite on each fresh run.
+      Shared rules: write only inside changeRoot from CLI JSON and resolve durable paths from
+      planningHome.root. Keep the artifact proportional: remove unused template sections and
+      instructional comments, honor project conventions and user instructions, and do not repeat
+      content another document owns.
       Precheck from the implementation repo root:
         BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null || git rev-parse HEAD~1)
         test "$(grep -cE '^Scope: (runtime|no-runtime)$' <changeRoot>/tasks.md)" -eq 1
@@ -144,17 +197,7 @@ artifacts:
 
       End with exactly one column-1 Decision: PASS, Decision: PASS WITH WARNINGS, or Decision: FAIL line.
       Approval requires all blocking checks to pass. On failure use superpowers:systematic-debugging and
-      return to apply; do not prepare archive until the decision permits it.
-
-  - id: archive
-    generates: archive.md
-    description: Verified design/spec sync and archive execution record
-    template: archive.md
-    requires: [verify]
-    instruction: |
-      Archive execution is governed by operations.archive.guidance from openspec instructions archive
-      --change <id> --json. The CLI reserves that command for operation inputs, so keep the workflow
-      there. This artifact tracks archive.md; prepare it after verification, then finalize it after the move.
+      return to apply; do not archive until the decision permits it.
 
 apply:
   requires: [tasks]
@@ -167,5 +210,16 @@ apply:
     Coverage Check using fresh status JSON. Read every file in contextFiles, including all design files.
     Resolve coverage failures before executing tasks, regardless of the CLI's ready/done status.
     Complete the checklist with a fresh implementer per task and spec-compliance then code-quality review.
-    When tasks are complete or safely deferred, gather verify.md evidence; prepare and execute archive.md
-    only after verification approval. Follow operation guidance for companion skills and iteration.
+    Use superpowers:test-driven-development for runtime changes, and superpowers:using-git-worktrees
+    when the platform supports isolation and none is already provided. Use
+    superpowers:requesting-code-review before completing a major task or opening a PR or merge,
+    superpowers:verification-before-completion for completion claims, and superpowers:systematic-debugging
+    for failures. Never edit openspec/designs/ during apply; the change's designs/ deltas merge at archive.
+
+    Iteration: revise the proposal first for scope changes, then the affected specs, design documents
+    and proposal inventory, then tasks. Rerun verification and record deviations.
+
+    When tasks are complete or safely deferred, write fresh verify.md evidence with its instructions,
+    even when apply reports all_done: that state only describes task checkboxes. Archive with
+    openspec-archive-change only after verification approval; its operation guidance runs
+    openspec-sync-designs before the spec sync and move.

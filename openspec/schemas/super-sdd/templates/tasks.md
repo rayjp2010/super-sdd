@@ -6,7 +6,7 @@ Scope: <runtime or no-runtime>
 
 | Path | Operation | Purpose |
 |---|---|---|
-| <path> | create / modify / delete | <purpose> |
+| <file-path> | create / modify / delete | <purpose> |
 
 ## Task Checklist
 
