@@ -3,25 +3,10 @@
 A custom OpenSpec workflow with adaptive design documents, durable design sync, and evidence gates.
 Version 1.14.3.15: revision 15, checked against OpenSpec CLI 1.14.3 and compatible with 1.14.x.
 
-```mermaid
-flowchart TD
-    P["proposal.md"] --> S["specs/**/*.md"]
-    S --> D["designs/**/*.md"]
-    D --> T["tasks.md"]
-    T --> I["implementation (openspec-apply-change)"]
-    I --> V["verify.md"]
-    V -- "FAIL" --> I
-    V -- "PASS or PASS WITH WARNINGS" --> R["openspec-archive-change"]
-    R --> Y["openspec-sync-designs, gated on verify.md"]
-    Y -- "synced" --> M["spec sync and move to archive/"]
-    Y -- "failed" --> X["archive stops"]
-    Y -.-> DD[("openspec/designs/")]
-    M -.-> DS[("openspec/specs/")]
-    C{{"design coverage check"}} -.-> T
-    C -.-> I
-    C -.-> V
-    C -.-> Y
-```
+![The super-sdd workflow from proposal.md to archive, with the design coverage check and the durable stores each archive step writes](diagrams/readme-workflow.drawio.svg)
+
+Dashed lines without a label show where the design coverage check runs; dashed `writes` lines show
+the durable tree each archive step updates.
 
 `openspec-continue-change` creates the next artifact; `openspec-propose` prepares implementation
 prerequisites. The design artifact is a set of files rather than a fixed document list, which is why
