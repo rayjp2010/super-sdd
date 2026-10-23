@@ -45,13 +45,16 @@ Prerequisites: OpenSpec CLI 1.14.x, plus the Superpowers skills for brainstormin
 subagent-driven development, and verification. Those four are binding, so the relevant phase stops if
 its skill is unavailable. Companion skills support TDD, worktrees, review, and debugging.
 
-The project also needs two documentation skills, which super-sdd does not ship:
+The schema and the sync skill also depend on two documentation skills, which super-sdd ships and
+installs:
 
 - `design-docs`: the per-kind template, writing rules, and `ste-lint` that the design phase and the
   sync skill apply to every durable document.
 - `technical-diagrams`: Mermaid only for sequence, ER, and state diagrams; an editable `.drawio.svg`
   in a `diagrams/` folder beside the document for every flowchart, architecture, topology, and
   dependency map.
+
+Their scripts need Node 20 or newer and git.
 
 ```toml
 [tools]
@@ -77,13 +80,16 @@ your-project/
   openspec/config.yaml                     replaced only when untouched since openspec init
   openspec/schemas/super-sdd/              schema.yaml and the five templates
   .agents/skills/openspec-sync-designs/    the project's one copy of the sync skill
-  .claude/skills/openspec-sync-designs     symlink to it, when the project has a .claude directory
+  .agents/skills/design-docs/              design writing templates, rules, and ste-lint
+  .agents/skills/technical-diagrams/       diagram rules and the draw.io render-and-lint script
+  .claude/skills/<each skill above>        symlinks, when the project has a .claude directory
 ```
 
 The mirror is keyed on `.claude` existing rather than `.claude/skills`, since a Claude project can
 predate that subdirectory. A config.yaml carrying real project settings is left alone, and you add
 the `operations.archive.guidance` entry yourself. Nothing else is overwritten without `--force`, which
-is also how you re-run the installer after `mise up`. Without mise, run `bin/super-sdd install` from
+is also how you re-run the installer after `mise up`. The installer checks every destination before
+its first write, so a refusal leaves the project unchanged. Without mise, run `bin/super-sdd install` from
 a clone.
 
 Use the CLI-generated OpenSpec skills rather than copying their implementations from another project,
@@ -143,7 +149,7 @@ every path in apply `contextFiles`.
 ## Upgrade existing projects
 
 Bump the pin in `mise.toml`, then run `mise install && super-sdd install --force`. That replaces the
-schema and sync skill together, and drops the old `templates/archive.md`. Merge revised config
+schema and the three skills together, and drops the old `templates/archive.md`. Merge revised config
 guidance by hand, since an edited `openspec/config.yaml` is never overwritten. The revision number is
 informational and does not pin older changes to an older copy of the schema.
 
@@ -155,7 +161,9 @@ From revision 14 or earlier:
    `context`.
 2. Delete any prepared `archive.md` in active changes. Revision 15 has no archive artifact; the
    verify.md gate moved into the sync skill.
-3. Make sure the project has the `design-docs` and `technical-diagrams` skills.
+3. `super-sdd install --force` now also installs `design-docs` and `technical-diagrams`, and
+   replaces any copy the project already has. If the project has edited its own copy, diff it
+   against the shipped one first and carry the edits back afterward.
 
 The sync skill no longer reads a legacy single `design.md`. Before upgrading, migrate each active
 legacy change:
@@ -204,7 +212,7 @@ Preserve these contracts when simplifying:
 
 On CLI upgrades, check supported schema fields, glob output discovery, and generated apply and
 archive instructions. `openspec update` refreshes generated skills but leaves this custom schema and
-the custom sync skill alone, so revalidate the schema and all five templates afterward.
+the three shipped skills alone, so revalidate the schema and all five templates afterward.
 
 Every release raises `version:` in `schema.yaml` and the last field of `VERSION` together, including
 a release that only touches the installer. Run `bash test/install_test.sh`, which checks that pairing

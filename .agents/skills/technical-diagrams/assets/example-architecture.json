@@ -1,0 +1,20 @@
+{
+  "name": "example-architecture",
+  "groups": [{ "id": "cluster", "label": "Shop cluster", "kind": "boundary" }],
+  "nodes": [
+    { "id": "shopper", "role": "actor", "label": "Shopper", "cx": 80, "cy": 110 },
+    { "id": "edge", "role": "entry", "label": "Edge proxy", "sub": "TLS, caching", "cx": 280, "cy": 110, "group": "cluster" },
+    { "id": "api", "role": "service", "label": "checkout-api", "sub": "REST", "cx": 500, "cy": 110, "group": "cluster" },
+    { "id": "worker", "role": "service", "label": "fulfilment", "sub": "background jobs", "cx": 500, "cy": 250, "group": "cluster" },
+    { "id": "db", "role": "store", "label": "Orders DB", "sub": "orders + jobs", "cx": 720, "cy": 180 },
+    { "id": "carrier", "role": "external", "label": "Carrier API", "sub": "external partner", "cx": 900, "cy": 263 }
+  ],
+  "edges": [
+    { "from": "shopper", "to": "edge", "label": "HTTPS" },
+    { "from": "edge", "to": "api", "label": "/api" },
+    { "from": "api", "to": "db", "label": "SQL" },
+    { "from": "api", "to": "worker", "label": "job ready", "kind": "async" },
+    { "from": "worker", "to": "db", "label": "claims jobs", "exit": "right:0.25", "entry": "bottom" },
+    { "from": "worker", "to": "carrier", "label": "book shipment", "exit": "right:0.75" }
+  ]
+}

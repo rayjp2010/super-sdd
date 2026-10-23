@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copies the super-sdd schema and sync skill into an OpenSpec project.
+# Copies the super-sdd schema and its skills into an OpenSpec project.
 # Setting up OpenSpec itself is the user's job; this only installs super-sdd.
 set -euo pipefail
 
@@ -12,7 +12,10 @@ OPENSPEC_SERIES="${OPENSPEC_VERSION%.*}"
 TARGET="OpenSpec ${OPENSPEC_SERIES}.x, checked against ${OPENSPEC_VERSION}"
 
 SCHEMA_SRC="$ROOT/openspec/schemas/super-sdd"
-SKILL_SRC="$ROOT/.agents/skills/openspec-sync-designs"
+# The sync skill, plus the two skills the schema and sync skill send durable design
+# writing and diagrams to. All three ship together so the schema never names a skill
+# the project lacks.
+SKILLS=(openspec-sync-designs design-docs technical-diagrams)
 CONFIG_SRC="$ROOT/openspec/config.yaml"
 
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -24,7 +27,7 @@ super-sdd $VERSION ($TARGET)
 
 Usage:
   super-sdd install [--force]
-      Copy the schema and sync skill into the current OpenSpec project.
+      Copy the schema and its skills into the current OpenSpec project.
       Run 'openspec init' first; this does not set up OpenSpec.
       --force   Replace files that already exist
   super-sdd version
@@ -90,14 +93,31 @@ install_cmd() {
   [ -d openspec ] || die "no openspec/ directory here; run 'openspec init' first"
   check_openspec
 
-  copy_into "$SCHEMA_SRC" openspec/schemas
-  copy_into "$SKILL_SRC" .agents/skills
-  # Claude reads .claude/skills. Key the mirror on .claude itself, not .claude/skills:
-  # a project can use Claude without that subdirectory existing yet. Link rather than
-  # copy, so the project holds one copy of the skill and the two cannot drift apart.
-  if [ -d .claude ]; then
-    link_into "../../.agents/skills/$(basename "$SKILL_SRC")" .claude/skills
+  # Check every destination before the first write, so a refusal never leaves a
+  # half-installed project behind.
+  local skill dest dests=(openspec/schemas/super-sdd)
+  for skill in "${SKILLS[@]}"; do
+    dests+=(".agents/skills/$skill")
+    [ -d .claude ] && dests+=(".claude/skills/$skill")
+  done
+  if [ "$FORCE" != yes ]; then
+    for dest in "${dests[@]}"; do
+      if [ -e "$dest" ] || [ -L "$dest" ]; then
+        die "$dest already exists; re-run with --force to replace it"
+      fi
+    done
   fi
+
+  copy_into "$SCHEMA_SRC" openspec/schemas
+  for skill in "${SKILLS[@]}"; do
+    copy_into "$ROOT/.agents/skills/$skill" .agents/skills
+    # Claude reads .claude/skills. Key the mirror on .claude itself, not .claude/skills:
+    # a project can use Claude without that subdirectory existing yet. Link rather than
+    # copy, so the project holds one copy of the skill and the two cannot drift apart.
+    if [ -d .claude ]; then
+      link_into "../../.agents/skills/$skill" .claude/skills
+    fi
+  done
 
   if [ ! -f openspec/config.yaml ] || config_is_untouched; then
     cp "$CONFIG_SRC" openspec/config.yaml

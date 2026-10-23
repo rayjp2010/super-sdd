@@ -1,0 +1,81 @@
+# Hand-written OpenAPI 3.1 file for operations that the code does not generate yet.
+# When the code generates OpenAPI, replace this file with the export:
+#   node <skill-dir>/scripts/openapi-export.mjs <url|file.json> openapi.yaml --paths <prefix>
+# Rules: one operation per API-list row; operationId in camelCase; schema names equal to the
+# code's exported schema names; every response that the flowchart shows, with its status code;
+# put shared schemas in components and reference them with $ref. Delete these comments.
+openapi: 3.1.0
+info:
+  title: <API name>
+  version: <version>
+paths:
+  /api/<resources>/{<id>}:
+    put:
+      operationId: <verbResource>
+      summary: <Same summary as the API list.>
+      tags:
+        - <resource>
+      security:
+        - session: []
+      parameters:
+        - name: <id>
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/<RequestSchema>"
+      responses:
+        "200":
+          description: <Success condition.>
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/<ResponseSchema>"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: <Refusal condition.>
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: <cookie name>
+  responses:
+    Unauthenticated:
+      description: The session is absent or expired.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+    <RequestSchema>:
+      type: object
+      required: [<field>]
+      properties:
+        <field>:
+          type: string
+          description: <One sentence.>
+    <ResponseSchema>:
+      type: object
+      properties:
+        <field>:
+          type: string

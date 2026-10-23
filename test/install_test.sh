@@ -9,6 +9,7 @@ trap 'rm -rf "$WORK"' EXIT
 assert_file() { [ -f "$1" ] || { printf 'FAIL: missing %s\n' "$1" >&2; exit 1; }; }
 assert_fails() { if "$@" >/dev/null 2>&1; then printf 'FAIL: expected failure: %s\n' "$*" >&2; exit 1; fi; }
 refute() { if [ -e "$1" ] || [ -L "$1" ]; then printf 'FAIL: %s\n' "$2" >&2; exit 1; fi; }
+SKILLS=(openspec-sync-designs design-docs technical-diagrams)
 
 bash "$ROOT/test/version_check.sh" >/dev/null
 
@@ -18,7 +19,9 @@ cd "$WORK/fresh"
 "$CLI" install >/dev/null
 assert_file openspec/schemas/super-sdd/schema.yaml
 assert_file openspec/schemas/super-sdd/templates/proposal.md
-assert_file .agents/skills/openspec-sync-designs/SKILL.md
+for skill in "${SKILLS[@]}"; do assert_file ".agents/skills/$skill/SKILL.md"; done
+assert_file .agents/skills/design-docs/scripts/ste-lint.mjs
+assert_file .agents/skills/technical-diagrams/scripts/render.mjs
 grep -q '^schema: super-sdd$' openspec/config.yaml
 refute mise.toml "wrote mise.toml; OpenSpec setup is not this installer's job"
 refute .claude "created .claude in a project that does not use it"
@@ -44,16 +47,25 @@ grep -q 'keep me' openspec/config.yaml
 mkdir -p "$WORK/claude/openspec" "$WORK/claude/.claude/rules"
 cd "$WORK/claude"
 "$CLI" install >/dev/null
-assert_file .claude/skills/openspec-sync-designs/SKILL.md      # resolves through the link
-[ -L .claude/skills/openspec-sync-designs ] || { printf 'FAIL: mirror is not a symlink\n' >&2; exit 1; }
-[ "$(readlink .claude/skills/openspec-sync-designs)" = "../../.agents/skills/openspec-sync-designs" ] \
-  || { printf 'FAIL: mirror link is not relative to the project\n' >&2; exit 1; }
+for skill in "${SKILLS[@]}"; do
+  assert_file ".claude/skills/$skill/SKILL.md"      # resolves through the link
+  [ -L ".claude/skills/$skill" ] || { printf 'FAIL: %s mirror is not a symlink\n' "$skill" >&2; exit 1; }
+  [ "$(readlink ".claude/skills/$skill")" = "../../.agents/skills/$skill" ] \
+    || { printf 'FAIL: %s mirror link is not relative to the project\n' "$skill" >&2; exit 1; }
+done
 [ -d .claude/rules ] || { printf 'FAIL: clobbered .claude/rules\n' >&2; exit 1; }
 
 # A dangling link is still replaceable: -e alone reports it as absent.
 rm -rf .agents/skills/openspec-sync-designs
 "$CLI" install --force >/dev/null
 assert_file .claude/skills/openspec-sync-designs/SKILL.md
+
+# A project that already has one of the skills is refused before anything is written.
+mkdir -p "$WORK/partial/openspec" "$WORK/partial/.agents/skills/design-docs"
+cd "$WORK/partial"
+assert_fails "$CLI" install
+refute openspec/schemas/super-sdd "wrote the schema before refusing"
+refute .agents/skills/openspec-sync-designs "wrote a skill before refusing"
 
 # Not an OpenSpec project: stop and say so rather than guessing.
 mkdir -p "$WORK/bare"
