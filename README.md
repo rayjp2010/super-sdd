@@ -200,5 +200,8 @@ archive instructions. `openspec update` refreshes generated skills but leaves th
 the three shipped skills alone, so revalidate the schema and all five templates afterward.
 
 Every release raises `version:` in `schema.yaml` and the last field of `VERSION` together, including
-a release that only touches the installer. Run `bash test/install_test.sh`, which checks that pairing
-along with the installer's behavior.
+a release that only touches the installer. Checking against a new OpenSpec release also moves the
+OpenSpec pin in this repository's `mise.toml`, which must equal the first three fields of `VERSION`.
+That file pins the tools for working on super-sdd (the CLI and the Node version the diagram script
+needs) and is left out of the release tarball. Run `mise install`, then `bash test/install_test.sh`,
+which checks both pairings along with the installer's behavior.

@@ -24,9 +24,19 @@ if [ "$REVISION" != "$SCHEMA_REVISION" ]; then
   exit 1
 fi
 
+# mise.toml pins the CLI that tests and schema checks run under. It must be the
+# release VERSION claims, or a revision gets "checked against" a CLI nobody ran.
+OPENSPEC_VERSION="${VERSION%.*}"
+PINNED="$(sed -nE 's/^"npm:@fission-ai\/openspec"[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/p' "$ROOT/mise.toml" 2>/dev/null | head -1 || true)"
+if [ "$PINNED" != "$OPENSPEC_VERSION" ]; then
+  printf 'error: VERSION %s targets OpenSpec %s but mise.toml pins %s\n' \
+    "$VERSION" "$OPENSPEC_VERSION" "${PINNED:-nothing}" >&2
+  exit 1
+fi
+
 if [ $# -gt 0 ] && [ "$1" != "v$VERSION" ]; then
   printf 'error: tag %s does not match VERSION %s (expected v%s)\n' "$1" "$VERSION" "$VERSION" >&2
   exit 1
 fi
 
-printf 'ok: version %s, schema revision %s\n' "$VERSION" "$SCHEMA_REVISION"
+printf 'ok: version %s, schema revision %s, OpenSpec pin %s\n' "$VERSION" "$SCHEMA_REVISION" "$PINNED"
