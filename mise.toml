@@ -1,0 +1,6 @@
+# Tools for working on super-sdd itself, not for projects that install it.
+# The OpenSpec pin must equal the first three fields of VERSION, the release this
+# revision is checked against; test/version_check.sh enforces that.
+[tools]
+node = "24.20.0"
+"npm:@fission-ai/openspec" = "1.14.3"
