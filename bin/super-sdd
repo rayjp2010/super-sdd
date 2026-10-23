@@ -103,8 +103,8 @@ install_cmd() {
     cp "$CONFIG_SRC" openspec/config.yaml
     printf 'wrote openspec/config.yaml\n'
   else
-    printf 'kept openspec/config.yaml; set "schema: super-sdd" and merge the context and\n'
-    printf 'operations blocks from %s\n' "$CONFIG_SRC"
+    printf 'kept openspec/config.yaml; set "schema: super-sdd" and merge the\n'
+    printf 'operations.archive.guidance entry from %s\n' "$CONFIG_SRC"
   fi
 
   printf '\nnext: openspec schema validate super-sdd --verbose\n'
