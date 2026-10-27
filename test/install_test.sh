@@ -36,11 +36,117 @@ printf 'schema: spec-driven\n\n# context: |\n#   example\n' > openspec/config.ya
 "$CLI" install --force >/dev/null
 grep -q '^schema: super-sdd$' openspec/config.yaml
 
-# A config.yaml carrying real project settings is left alone.
-printf 'schema: mine\n\ncontext: |\n  keep me\n' > openspec/config.yaml
+# A config.yaml carrying real project settings gets the super-sdd settings merged in under
+# --force, keeping everything else. Each case is: input, then the exact expected output.
+ENTRY="$(sed -n 's/^[[:space:]]*- //p' "$ROOT/openspec/config.yaml")"
+assert_merge() {
+  printf '%s' "$1" > openspec/config.yaml
+  "$CLI" install --force >/dev/null
+  printf '%s' "$2" | diff - openspec/config.yaml >&2 \
+    || { printf 'FAIL: merge of %s\n' "$3" >&2; exit 1; }
+  # A second run finds nothing to add.
+  "$CLI" install --force >/dev/null
+  printf '%s' "$2" | diff -q - openspec/config.yaml >/dev/null \
+    || { printf 'FAIL: re-merge of %s changed the file\n' "$3" >&2; exit 1; }
+}
+
+assert_merge 'schema: mine
+
+context: |
+  keep me
+' "schema: super-sdd
+
+context: |
+  keep me
+
+operations:
+  archive:
+    guidance:
+      - $ENTRY
+" 'a config without operations'
+
+assert_merge 'schema: mine
+operations:
+    apply:
+        guidance:
+            - "a1"
+rules:
+  proposal:
+    - r1
+' "schema: super-sdd
+operations:
+    apply:
+        guidance:
+            - \"a1\"
+    archive:
+        guidance:
+            - $ENTRY
+rules:
+  proposal:
+    - r1
+" 'operations without archive, at its own indent'
+
+assert_merge 'schema: mine
+operations:
+  archive:
+    guidance:
+    - "g1"
+    # project note
+
+  apply:
+    guidance:
+      - "a1"
+' "schema: super-sdd
+operations:
+  archive:
+    guidance:
+    - \"g1\"
+    - $ENTRY
+    # project note
+
+  apply:
+    guidance:
+      - \"a1\"
+" 'an existing archive guidance list'
+
+assert_merge 'schema: mine
+operations:
+  archive:
+' "schema: super-sdd
+operations:
+  archive:
+    guidance:
+      - $ENTRY
+" 'an empty archive'
+
+# OpenSpec itself reads the merged file as intended, when its CLI is available.
+if openspec --version >/dev/null 2>&1; then
+  printf 'schema: mine\ncontext: |\n  keep me\noperations:\n  archive:\n    guidance:\n      - "g1"\n' > openspec/config.yaml
+  "$CLI" install --force >/dev/null
+  mkdir -p openspec/changes/demo && touch openspec/changes/demo/proposal.md
+  parsed="$(openspec instructions archive --change demo --json)"
+  rm -rf openspec/changes
+  printf '%s' "$parsed" | grep -q '"context": "keep me' \
+    || { printf 'FAIL: OpenSpec lost context after merge\n' >&2; exit 1; }
+  printf '%s' "$parsed" | tr -d '\n ' | grep -qF "$(printf '"operationGuidance":["g1",%s]' "$ENTRY" | tr -d ' ')" \
+    || { printf 'FAIL: OpenSpec does not read the merged guidance\n%s\n' "$parsed" >&2; exit 1; }
+else
+  printf 'skip: openspec CLI unavailable, merged config not parsed by OpenSpec\n'
+fi
+
+# A layout the text merge cannot edit safely is left alone, even under --force.
+printf 'schema: mine\noperations: {archive: {guidance: [g1]}}\n' > openspec/config.yaml
 "$CLI" install --force >/dev/null
 grep -q '^schema: mine$' openspec/config.yaml
-grep -q 'keep me' openspec/config.yaml
+grep -q '^operations: {archive: {guidance: \[g1\]}}$' openspec/config.yaml
+
+# Without --force, an edited config.yaml is left alone.
+mkdir -p "$WORK/edited/openspec"
+cd "$WORK/edited"
+printf 'schema: mine\n\ncontext: |\n  keep me\n' > openspec/config.yaml
+"$CLI" install >/dev/null
+printf 'schema: mine\n\ncontext: |\n  keep me\n' | diff -q - openspec/config.yaml >/dev/null \
+  || { printf 'FAIL: install without --force edited config.yaml\n' >&2; exit 1; }
 
 # A Claude project that has never had .claude/skills. This is the common shape: a repo
 # with CLAUDE.md and .claude/rules that adopted OpenSpec before super-sdd.

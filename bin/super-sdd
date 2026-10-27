@@ -29,7 +29,8 @@ Usage:
   super-sdd install [--force]
       Copy the schema and its skills into the current OpenSpec project.
       Run 'openspec init' first; this does not set up OpenSpec.
-      --force   Replace files that already exist
+      --force   Replace files that already exist, and merge the super-sdd
+                settings into an edited openspec/config.yaml
   super-sdd version
       Print the version and the OpenSpec release it targets
 EOF
@@ -89,6 +90,110 @@ config_is_untouched() {
   ! grep -vE '^[[:space:]]*(#|$)' openspec/config.yaml | grep -qvE '^schema:'
 }
 
+# Print $1 with the super-sdd settings merged in: "schema: super-sdd", and each
+# operations.archive.guidance entry from $CONFIG_SRC that the list lacks. Every other line
+# is kept as it is, comments included. This edits text rather than parsing YAML, so it
+# knows block-style mappings and lists only. On anything else (flow style such as
+# "operations: {}", several documents, CRLF line endings) it prints nothing and exits 2.
+merge_config() {
+  ENTRIES="$(sed -n 's/^[[:space:]]*- //p' "$CONFIG_SRC")" awk '
+    function indent(s) { match(s, /^ */); return RLENGTH }
+    function content(s) { return s !~ /^ *(#|$)/ }
+    function trim(s) { sub(/^ +/, "", s); sub(/ +$/, "", s); return s }
+    function pad(k,   s) { s = ""; while (k-- > 0) s = s " "; return s }
+    # The unquoted key that line i starts, or "" when it is not a mapping key.
+    # A key whose value sits on the same line is flow style or a scalar: give up.
+    function key(i,   k, rest) {
+      if (!match(L[i], /^ *["\047]?[A-Za-z0-9_.-]+["\047]? *:( |$)/)) return ""
+      k = trim(substr(L[i], 1, RLENGTH)); rest = substr(L[i], RLENGTH + 1)
+      sub(/ *:$/, "", k); gsub(/["\047]/, "", k)
+      if ((k == "operations" || k == "archive" || k == "guidance") && rest !~ /^ *(#.*)?$/) exit 2
+      return k
+    }
+    # The last line of the block that line i opens: its children are indented deeper.
+    function block_end(i,   j, e) {
+      e = i
+      for (j = i + 1; j <= n; j++) {
+        if (!content(L[j])) continue
+        if (indent(L[j]) <= indent(L[i])) break
+        e = j
+      }
+      return e
+    }
+    # The first child of line i whose key is k, or 0. Children sit at the indent of
+    # the first content line inside the block.
+    function child(i, e, k,   j, ci) {
+      ci = -1
+      for (j = i + 1; j <= e; j++) {
+        if (!content(L[j])) continue
+        if (ci < 0) ci = indent(L[j])
+        if (indent(L[j]) == ci && key(j) == k) return j
+      }
+      return 0
+    }
+    function child_indent(i, e,   j) {
+      for (j = i + 1; j <= e; j++) if (content(L[j])) return indent(L[j])
+      return indent(L[i]) + 2
+    }
+    function items(ind,   s, m) {
+      s = ""
+      for (m = 1; m <= nmiss; m++) s = s "\n" pad(ind) "- " MISS[m]
+      return substr(s, 2)
+    }
+    { L[++n] = $0 }
+    END {
+      nent = split(ENVIRON["ENTRIES"], E, "\n")
+      for (i = 1; i <= n; i++) {
+        if (L[i] ~ /\r$/ || L[i] ~ /^(---|\.\.\.)( |$)/) exit 2
+        if (!content(L[i]) || indent(L[i]) > 0) continue
+        k = key(i)
+        if (k == "") exit 2
+        if (k == "schema" && !schema) schema = i
+        if (k == "operations") { if (ops) exit 2; ops = i }
+      }
+
+      # Find the guidance list, or the deepest parent that exists, and what to add.
+      if (ops) { oe = block_end(ops); arch = child(ops, oe, "archive") }
+      if (arch) { ae = block_end(arch); guid = child(arch, ae, "guidance") }
+      if (guid) {
+        # A block list may sit at the same indent as its key, so "- " lines there
+        # still belong to it.
+        ge = guid; gi = -1
+        for (j = guid + 1; j <= n; j++) {
+          if (!content(L[j])) continue
+          if (indent(L[j]) < indent(L[guid])) break
+          if (indent(L[j]) == indent(L[guid]) && L[j] !~ /^ *- /) break
+          if (gi < 0) { if (L[j] !~ /^ *- /) exit 2; gi = indent(L[j]) }
+          if (indent(L[j]) == gi) HAVE[trim(substr(L[j], gi + 3))] = 1
+          ge = j
+        }
+        if (gi < 0) gi = indent(L[guid]) + 2
+      }
+      for (m = 1; m <= nent; m++) if (E[m] != "" && !(E[m] in HAVE)) MISS[++nmiss] = E[m]
+
+      if (nmiss) {
+        if (guid) {
+          AFTER[ge] = items(gi)
+        } else if (arch) {
+          ci = child_indent(arch, ae); step = ci - indent(L[arch])
+          AFTER[ae] = pad(ci) "guidance:\n" items(ci + step)
+        } else if (ops) {
+          ci = child_indent(ops, oe)
+          AFTER[oe] = pad(ci) "archive:\n" pad(2 * ci) "guidance:\n" items(3 * ci)
+        } else {
+          AFTER[n] = (n && content(L[n]) ? "\n" : "") "operations:\n  archive:\n    guidance:\n" items(6)
+        }
+      }
+
+      if (!schema) print "schema: super-sdd"
+      for (i = 1; i <= n; i++) {
+        print (i == schema ? "schema: super-sdd" : L[i])
+        if (i in AFTER) print AFTER[i]
+      }
+    }
+  ' "$1"
+}
+
 install_cmd() {
   [ -d openspec ] || die "no openspec/ directory here; run 'openspec init' first"
   check_openspec
@@ -119,12 +224,28 @@ install_cmd() {
     fi
   done
 
-  if [ ! -f openspec/config.yaml ] || config_is_untouched; then
-    cp "$CONFIG_SRC" openspec/config.yaml
-    printf 'wrote openspec/config.yaml\n'
+  # A config.yaml with real project settings is never replaced. --force merges the
+  # super-sdd settings into it instead, keeping everything else.
+  local cfg=openspec/config.yaml merged
+  if [ ! -f "$cfg" ] || config_is_untouched; then
+    cp "$CONFIG_SRC" "$cfg"
+    printf 'wrote %s\n' "$cfg"
   else
-    printf 'kept openspec/config.yaml; set "schema: super-sdd" and merge the\n'
-    printf 'operations.archive.guidance entry from %s\n' "$CONFIG_SRC"
+    merged="$(mktemp)"
+    if ! merge_config "$cfg" > "$merged"; then
+      printf 'kept %s; its layout is too unusual to edit safely. Set "schema: super-sdd"\n' "$cfg"
+      printf 'and merge the operations.archive.guidance entry from %s by hand\n' "$CONFIG_SRC"
+    elif cmp -s "$merged" "$cfg"; then
+      printf 'kept %s; it already has the super-sdd settings\n' "$cfg"
+    elif [ "$FORCE" = yes ]; then
+      # Write through the existing file, so its permissions and any symlink survive.
+      cat "$merged" > "$cfg"
+      printf 'merged the super-sdd settings into %s\n' "$cfg"
+    else
+      printf 'kept %s; re-run with --force to set "schema: super-sdd" and add the\n' "$cfg"
+      printf 'operations.archive.guidance entry, keeping your other settings\n'
+    fi
+    rm -f "$merged"
   fi
 
   printf '\nnext: openspec schema validate super-sdd --verbose\n'

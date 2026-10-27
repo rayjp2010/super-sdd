@@ -62,7 +62,7 @@ That leaves the project holding:
 
 ```
 your-project/
-  openspec/config.yaml                     replaced only when untouched since openspec init
+  openspec/config.yaml                     replaced when untouched since openspec init, else merged with --force
   openspec/schemas/super-sdd/              schema.yaml and the five templates
   .agents/skills/openspec-sync-designs/    the project's one copy of the sync skill
   .agents/skills/design-docs/              design writing templates, rules, and ste-lint
@@ -71,9 +71,12 @@ your-project/
 ```
 
 The mirror is keyed on `.claude` existing rather than `.claude/skills`, since a Claude project can
-predate that subdirectory. A config.yaml carrying real project settings is left alone, and you add
-the `operations.archive.guidance` entry yourself. Nothing else is overwritten without `--force`, which
-is also how you re-run the installer after `mise up`. The installer checks every destination before
+predate that subdirectory. A config.yaml carrying real project settings is never replaced. With
+`--force`, the installer sets `schema: super-sdd` in it and adds the `operations.archive.guidance`
+entry if the list lacks it, keeping every other line and comment. The merge edits text rather than
+parsing YAML, so it handles block-style mappings and lists only. On anything else, such as flow style
+(`operations: {...}`), it leaves the file alone and asks you to merge by hand. Nothing else is
+overwritten without `--force`, which is also how you re-run the installer after `mise up`. The installer checks every destination before
 its first write, so a refusal leaves the project unchanged. Without mise, run `bin/super-sdd install` from
 a clone.
 
@@ -134,8 +137,9 @@ every path in apply `contextFiles`.
 ## Upgrade existing projects
 
 Bump the pin in `mise.toml`, then run `mise install && super-sdd install --force`. That replaces the
-schema and the three skills together, and drops the old `templates/archive.md`. Merge revised config
-guidance by hand, since an edited `openspec/config.yaml` is never overwritten. The revision number is
+schema and the three skills together, and drops the old `templates/archive.md`. It also adds the
+current archive guidance entry to an edited `openspec/config.yaml`, but it only adds: delete outdated
+super-sdd entries by hand. The revision number is
 informational and does not pin older changes to an older copy of the schema.
 
 From revision 14 or earlier:
