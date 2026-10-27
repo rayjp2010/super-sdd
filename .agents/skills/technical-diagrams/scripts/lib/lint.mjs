@@ -259,7 +259,6 @@ export function lint(svgText, cells) {
   }
   const boxes = nodes.filter((n) => !n.container && !n.text);
   const containers = nodes.filter((n) => n.container);
-  const rectOf = new Map(nodes.map((n) => [n.id, n.rect]));
 
   const ancestors = (id) => {
     const list = [];

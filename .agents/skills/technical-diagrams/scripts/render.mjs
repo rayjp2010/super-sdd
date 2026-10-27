@@ -11,7 +11,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { buildModel } from "./lib/build.mjs";
 import { exportDiagram } from "./lib/export.mjs";
 import { lint } from "./lib/lint.mjs";
